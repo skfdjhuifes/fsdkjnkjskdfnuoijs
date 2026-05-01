@@ -11,10 +11,10 @@
     - Mouse cursor-based raycasting (pixel-accurate)
     - Multi-sample raycasting for improved reliability
     - Character part prioritization and filtering
-    - Live UI configuration (no restart needed)
-    - Enhanced UI with more settings
+    - Configurable FOV radius and distance limiting
     - Proper debounce logic to prevent rapid triggering
     - Performance optimized with cached references
+    - Clean modular architecture
 ]]
 
 ------------------------------------------------------------------
@@ -28,32 +28,42 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Cache frequently used references
+-- Cache frequently used references for performance
 local Workspace = workspace
 local GetPlayers = Players.GetPlayers
 local GetMouseLocation = UserInputService.GetMouseLocation
 
 ------------------------------------------------------------------
--- CONFIGURATION (Live-Editable)
+-- CONFIGURATION & SETTINGS
 ------------------------------------------------------------------
 
 local Config = {
+    -- Triggerbot settings
     Triggerbot = {
         Enabled = true,
-        SampleCount = 9,
-        MaxDistance = 1000,
-        DebounceTime = 0.1,
-        FireDelay = 0.01,
+        FOVRadius = 5,              -- Pixel radius around cursor for multi-sampling
+        SampleCount = 9,            -- Number of raycast samples (odd number recommended)
+        MaxDistance = 1000,         -- Maximum raycast distance in studs
+        DebounceTime = 0.1,         -- Seconds between triggers
+        FireDelay = 0.01,           -- Delay between mouse press and release
     },
+    
+    -- ESP settings
     ESP = {
         FillColor = Color3.fromRGB(255, 0, 0),
         OutlineColor = Color3.fromRGB(255, 255, 255),
         FillTransparency = 0.5,
         OutlineTransparency = 0,
     },
+    
+    -- UI settings
+    UI = {
+        DefaultWidth = 360,
+        DefaultHeight = 260,
+    }
 }
 
--- Priority order for character parts
+-- Priority order for character parts (highest priority first)
 local CharacterPartPriority = {
     "HumanoidRootPart",
     "Torso",
@@ -70,126 +80,223 @@ local CharacterPartPriority = {
 local State = {
     Running = true,
     Connections = {},
-    UIElements = {},
     
     ESP = {
         Enabled = false,
         Armed = false,
-        Highlights = {},
+        Highlights = {},  -- Renamed from Pixels for clarity
     },
     
     Triggerbot = {
         Held = false,
-        State = "DISARMED",
+        State = "DISARMED",  -- DISARMED, ARMED, HOLDING, TARGET
         Clicked = false,
         LastTriggerTime = 0,
     },
+    
+    UI = {
+        Visible = true,
+        Dragging = false,
+        Resizing = false,
+    },
+}
+
+-- Settings persistence
+local Settings = {
+    ESPEnabled = false,
+    ESPArmed = false,
+    FillColor = Config.ESP.FillColor,
+    OutlineColor = Config.ESP.OutlineColor,
+    UISizeX = Config.UI.DefaultWidth,
+    UISizeY = Config.UI.DefaultHeight,
 }
 
 ------------------------------------------------------------------
 -- UTILITY FUNCTIONS
 ------------------------------------------------------------------
 
+local function SaveSettings()
+    Settings.ESPEnabled = State.ESP.Enabled
+    Settings.ESPArmed = State.ESP.Armed
+    Settings.FillColor = Config.ESP.FillColor
+    Settings.OutlineColor = Config.ESP.OutlineColor
+    
+    if State.UI.MainFrame then
+        Settings.UISizeX = State.UI.MainFrame.Size.X.Offset
+        Settings.UISizeY = State.UI.MainFrame.Size.Y.Offset
+    end
+end
+
+local function LoadSettings()
+    State.ESP.Enabled = Settings.ESPEnabled
+    State.ESP.Armed = Settings.ESPArmed
+    Config.ESP.FillColor = Settings.FillColor
+    Config.ESP.OutlineColor = Settings.OutlineColor
+end
+
 local function HSVToRGB(h, s, v)
     local c = v * s
     local x = c * (1 - math.abs((h / 60) % 2 - 1))
     local m = v - c
+    
     local r, g, b = 0, 0, 0
     
-    if h < 60 then r, g, b = c, x, 0
-    elseif h < 120 then r, g, b = x, c, 0
-    elseif h < 180 then r, g, b = 0, c, x
-    elseif h < 240 then r, g, b = 0, x, c
-    elseif h < 300 then r, g, b = x, 0, c
-    else r, g, b = c, 0, x end
+    if h < 60 then
+        r, g, b = c, x, 0
+    elseif h < 120 then
+        r, g, b = x, c, 0
+    elseif h < 180 then
+        r, g, b = 0, c, x
+    elseif h < 240 then
+        r, g, b = 0, x, c
+    elseif h < 300 then
+        r, g, b = x, 0, c
+    else
+        r, g, b = c, 0, x
+    end
     
     return Color3.new(r + m, g + m, b + m)
+end
+
+local function RGBToHSV(color)
+    local r, g, b = color.R, color.G, color.B
+    local max, min = math.max(r, g, b), math.min(r, g, b)
+    local d = max - min
+    local h = 0
+    
+    if d == 0 then
+        h = 0
+    elseif max == r then
+        h = 60 * (((g - b) / d) % 6)
+    elseif max == g then
+        h = 60 * (((b - r) / d) + 2)
+    elseif max == b then
+        h = 60 * (((r - g) / d) + 4)
+    end
+    
+    local s = (max == 0) and 0 or (d / max)
+    local v = max
+    
+    return h, s, v
 end
 
 ------------------------------------------------------------------
 -- RAYCASTING SYSTEM (MOUSE CURSOR-BASED)
 ------------------------------------------------------------------
 
-local RaycastParamsObj = RaycastParams.new()
-RaycastParamsObj.FilterType = Enum.RaycastFilterType.Blacklist
-RaycastParamsObj.FilterDescendantsInstances = {LocalPlayer.Character}
+-- Pre-allocated RaycastParams for performance
+local RaycastParams = RaycastParams.new()
+RaycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+RaycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
 
+-- Multi-sample offset patterns for better accuracy
 local SampleOffsets = {
-    Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(-1, 0),
-    Vector2.new(0, 1), Vector2.new(0, -1), Vector2.new(2, 0),
-    Vector2.new(-2, 0), Vector2.new(0, 2), Vector2.new(0, -2),
-    Vector2.new(1, 1), Vector2.new(-1, -1), Vector2.new(1, -1),
-    Vector2.new(-1, 1),
+    Vector2.new(0, 0),      -- Center
+    Vector2.new(1, 0),      -- Right
+    Vector2.new(-1, 0),     -- Left
+    Vector2.new(0, 1),      -- Down
+    Vector2.new(0, -1),     -- Up
+    Vector2.new(2, 0),      -- Far right
+    Vector2.new(-2, 0),     -- Far left
+    Vector2.new(0, 2),      -- Far down
+    Vector2.new(0, -2),     -- Far up
+    Vector2.new(1, 1),      -- Diagonal
+    Vector2.new(-1, -1),    -- Diagonal
+    Vector2.new(1, -1),     -- Diagonal
+    Vector2.new(-1, 1),     -- Diagonal
 }
 
+--- Check if a part belongs to a priority character part
 local function IsPriorityPart(part)
-    for _, name in ipairs(CharacterPartPriority) do
-        if part.Name == name then return true end
+    for _, priorityName in ipairs(CharacterPartPriority) do
+        if part.Name == priorityName then
+            return true
+        end
     end
     return false
 end
 
+--- Get the player from a character model, with filtering
 local function GetTargetPlayerFromPart(part)
-    if part:IsA("Accessory") or part.Name:match("Handle") then return nil end
-    
     local model = part:FindFirstAncestorOfClass("Model")
     if not model then return nil end
     
     local player = Players:GetPlayerFromCharacter(model)
     if not player or player == LocalPlayer then return nil end
     
+    -- Filter out irrelevant hits
+    if part:IsA("Accessory") or part.Name:match("Handle") then
+        return nil
+    end
+    
     return player
 end
 
+--- Perform multi-sample raycasting from mouse cursor position
 local function PerformCursorRaycast()
     if not Camera then
         Camera = Workspace.CurrentCamera
         if not Camera then return nil end
     end
     
+    -- Get mouse cursor position
     local mousePos = GetMouseLocation(UserInputService)
-    RaycastParamsObj.FilterDescendantsInstances = {LocalPlayer.Character}
+    local cursorX, cursorY = mousePos.X, mousePos.Y
     
+    -- Update filter to include current character
+    RaycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    
+    -- Determine number of samples to use
     local sampleCount = math.min(Config.Triggerbot.SampleCount, #SampleOffsets)
-    local bestResult
     
+    -- Try each sample point
     for i = 1, sampleCount do
         local offset = SampleOffsets[i]
-        local ray = Camera:ViewportPointToRay(
-            mousePos.X + offset.X,
-            mousePos.Y + offset.Y
-        )
+        local sampleX = cursorX + offset.X
+        local sampleY = cursorY + offset.Y
         
+        -- Create ray from viewport point
+        local ray = Camera:ViewportPointToRay(sampleX, sampleY)
+        
+        -- Perform raycast
         local result = Workspace:Raycast(
             ray.Origin,
             ray.Direction * Config.Triggerbot.MaxDistance,
-            RaycastParamsObj
+            RaycastParams
         )
         
         if result and result.Instance then
-            local targetPlayer = GetTargetPlayerFromPart(result.Instance)
+            local part = result.Instance
+            
+            -- Check if this is a valid target
+            local targetPlayer = GetTargetPlayerFromPart(part)
             if targetPlayer then
-                if IsPriorityPart(result.Instance) then
+                -- Prioritize important body parts
+                if IsPriorityPart(part) then
                     return {
                         Player = targetPlayer,
-                        Part = result.Instance,
+                        Part = part,
                         Position = result.Position,
                         Distance = result.Distance,
                         IsPriority = true,
                     }
-                elseif not bestResult then
-                    bestResult = {
-                        Player = targetPlayer,
-                        Part = result.Instance,
-                        Position = result.Position,
-                        Distance = result.Distance,
-                        IsPriority = false,
-                    }
+                else
+                    -- Store non-priority hit but continue searching
+                    if not bestResult then
+                        bestResult = {
+                            Player = targetPlayer,
+                            Part = part,
+                            Position = result.Position,
+                            Distance = result.Distance,
+                            IsPriority = false,
+                        }
+                    end
                 end
             end
         end
     end
     
+    -- Return best result (priority if found, otherwise first valid)
     return bestResult
 end
 
@@ -200,7 +307,9 @@ end
 local ESPSystem = {}
 
 function ESPSystem:CreateHighlight(character)
-    if not character or State.ESP.Highlights[character] then return end
+    if not character or State.ESP.Highlights[character] then
+        return
+    end
     
     local highlight = Instance.new("Highlight")
     highlight.Name = "ESP_Highlight"
@@ -223,7 +332,7 @@ function ESPSystem:RemoveHighlight(character)
 end
 
 function ESPSystem:ClearAll()
-    for _, highlight in pairs(State.ESP.Highlights) do
+    for character, highlight in pairs(State.ESP.Highlights) do
         highlight:Destroy()
     end
     State.ESP.Highlights = {}
@@ -237,6 +346,7 @@ function ESPSystem:Update()
         return
     end
     
+    -- Update existing highlights and create new ones
     for _, player in ipairs(GetPlayers(Players)) do
         if player ~= LocalPlayer then
             local character = player.Character
@@ -250,6 +360,7 @@ function ESPSystem:Update()
         end
     end
     
+    -- Remove highlights for players that no longer exist
     for character, _ in pairs(State.ESP.Highlights) do
         if not character or not character.Parent then
             self:RemoveHighlight(character)
@@ -268,22 +379,28 @@ local function ProcessTriggerbot()
     end
     
     if not State.Triggerbot.Held then
-        State.Triggerbot.State = State.Triggerbot.State == "DISARMED" and "DISARMED" or "ARMED"
+        if State.Triggerbot.State == "DISARMED" then
+            State.Triggerbot.State = "ARMED"
+        end
         State.Triggerbot.Clicked = false
         return
     end
     
     State.Triggerbot.State = "HOLDING"
     
+    -- Check debounce
     local currentTime = tick()
     if currentTime - State.Triggerbot.LastTriggerTime < Config.Triggerbot.DebounceTime then
         return
     end
     
+    -- Perform raycast
     local targetInfo = PerformCursorRaycast()
     
     if targetInfo then
         State.Triggerbot.State = "TARGET"
+        
+        -- Fire trigger
         mouse1press()
         task.wait(Config.Triggerbot.FireDelay)
         mouse1release()
@@ -301,36 +418,10 @@ end
 ------------------------------------------------------------------
 
 local UIElements = {}
-local currentHue = 0
-local currentS = 1
-local currentV = 1
-
-local function SetUIDragging(enabled)
-    if UIElements.MainFrame then
-        UIElements.MainFrame.Draggable = enabled
-    end
-end
-
-local function UpdateColorPickerFromHSV()
-    local color = Color3.fromHSV(currentHue / 360, currentS, currentV)
-    
-    if UIElements.Preview then
-        UIElements.Preview.BackgroundColor3 = color
-    end
-    if UIElements.SVSquare then
-        UIElements.SVSquare.BackgroundColor3 = Color3.fromHSV(currentHue / 360, 1, 1)
-        UIElements.SVSquare.BackgroundTransparency = 0
-    end
-    
-    if UIElements.SVSelector then
-        UIElements.SVSelector.Position = UDim2.new(currentS, 0, 1 - currentV, 0)
-    end
-    if UIElements.HueSelector then
-        UIElements.HueSelector.Position = UDim2.new(0.5, 0, 1 - (currentHue / 360), 0)
-    end
-end
 
 local function CreateUI()
+    LoadSettings()
+    
     -- Clean up existing UI
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
     local existingUI = playerGui:FindFirstChild("ESP_UI")
@@ -348,7 +439,7 @@ local function CreateUI()
     -- Main Frame
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 400, 0, 320)
+    mainFrame.Size = UDim2.new(0, Settings.UISizeX, 0, Settings.UISizeY)
     mainFrame.Position = UDim2.new(0, 20, 0, 20)
     mainFrame.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
     mainFrame.BorderSizePixel = 0
@@ -367,6 +458,7 @@ local function CreateUI()
     resizeHandle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     resizeHandle.BorderSizePixel = 0
     resizeHandle.Parent = mainFrame
+    
     Instance.new("UICorner", resizeHandle).CornerRadius = UDim.new(0, 3)
     UIElements.ResizeHandle = resizeHandle
     
@@ -390,7 +482,7 @@ local function CreateUI()
     
     -- Main Tab
     local mainTab = Instance.new("TextButton")
-    mainTab.Size = UDim2.new(0.25, -5, 1, 0)
+    mainTab.Size = UDim2.new(1/3, -5, 1, 0)
     mainTab.Position = UDim2.new(0, 0, 0, 0)
     mainTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     mainTab.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -401,36 +493,10 @@ local function CreateUI()
     Instance.new("UICorner", mainTab).CornerRadius = UDim.new(0, 6)
     UIElements.MainTab = mainTab
     
-    -- Triggerbot Tab
-    local triggerTab = Instance.new("TextButton")
-    triggerTab.Size = UDim2.new(0.25, -5, 1, 0)
-    triggerTab.Position = UDim2.new(0.25, 5, 0, 0)
-    triggerTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    triggerTab.TextColor3 = Color3.fromRGB(200, 200, 200)
-    triggerTab.TextScaled = true
-    triggerTab.Text = "Triggerbot"
-    triggerTab.BorderSizePixel = 0
-    triggerTab.Parent = tabBar
-    Instance.new("UICorner", triggerTab).CornerRadius = UDim.new(0, 6)
-    UIElements.TriggerTab = triggerTab
-    
-    -- ESP Tab
-    local espTab = Instance.new("TextButton")
-    espTab.Size = UDim2.new(0.25, -5, 1, 0)
-    espTab.Position = UDim2.new(0.5, 10, 0, 0)
-    espTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    espTab.TextColor3 = Color3.fromRGB(200, 200, 200)
-    espTab.TextScaled = true
-    espTab.Text = "ESP"
-    espTab.BorderSizePixel = 0
-    espTab.Parent = tabBar
-    Instance.new("UICorner", espTab).CornerRadius = UDim.new(0, 6)
-    UIElements.ESPTab = espTab
-    
     -- Debug Tab
     local debugTab = Instance.new("TextButton")
-    debugTab.Size = UDim2.new(0.25, -5, 1, 0)
-    debugTab.Position = UDim2.new(0.75, 15, 0, 0)
+    debugTab.Size = UDim2.new(1/3, -5, 1, 0)
+    debugTab.Position = UDim2.new(1/3, 5, 0, 0)
     debugTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
     debugTab.TextColor3 = Color3.fromRGB(200, 200, 200)
     debugTab.TextScaled = true
@@ -439,6 +505,19 @@ local function CreateUI()
     debugTab.Parent = tabBar
     Instance.new("UICorner", debugTab).CornerRadius = UDim.new(0, 6)
     UIElements.DebugTab = debugTab
+    
+    -- Settings Tab
+    local settingsTab = Instance.new("TextButton")
+    settingsTab.Size = UDim2.new(1/3, -5, 1, 0)
+    settingsTab.Position = UDim2.new(2/3, 10, 0, 0)
+    settingsTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    settingsTab.TextColor3 = Color3.fromRGB(200, 200, 200)
+    settingsTab.TextScaled = true
+    settingsTab.Text = "ESP Settings"
+    settingsTab.BorderSizePixel = 0
+    settingsTab.Parent = tabBar
+    Instance.new("UICorner", settingsTab).CornerRadius = UDim.new(0, 6)
+    UIElements.SettingsTab = settingsTab
     
     -- Main Content
     local mainContent = Instance.new("Frame")
@@ -486,143 +565,61 @@ local function CreateUI()
     Instance.new("UICorner", killButton).CornerRadius = UDim.new(0, 6)
     UIElements.KillButton = killButton
     
-    -- Triggerbot Content
-    local triggerContent = Instance.new("Frame")
-    triggerContent.Size = UDim2.new(1, -10, 1, -90)
-    triggerContent.Position = UDim2.new(0, 5, 0, 60)
-    triggerContent.BackgroundTransparency = 1
-    triggerContent.Name = "TriggerContent"
-    triggerContent.Visible = false
-    triggerContent.Parent = mainFrame
-    UIElements.TriggerContent = triggerContent
+    -- Debug Content
+    local debugContent = Instance.new("Frame")
+    debugContent.Size = UDim2.new(1, -10, 1, -90)
+    debugContent.Position = UDim2.new(0, 5, 0, 60)
+    debugContent.BackgroundTransparency = 1
+    debugContent.Name = "DebugContent"
+    debugContent.Visible = false
+    debugContent.Parent = mainFrame
+    UIElements.DebugContent = debugContent
     
-    -- Triggerbot Enabled Toggle
-    local triggerEnabledBtn = Instance.new("TextButton")
-    triggerEnabledBtn.Size = UDim2.new(0, 260, 0, 36)
-    triggerEnabledBtn.Position = UDim2.new(0, 20, 0, 5)
-    triggerEnabledBtn.BackgroundColor3 = Config.Triggerbot.Enabled and Color3.fromRGB(50, 120, 50) or Color3.fromRGB(50, 50, 50)
-    triggerEnabledBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    triggerEnabledBtn.TextScaled = true
-    triggerEnabledBtn.BorderSizePixel = 0
-    triggerEnabledBtn.Text = Config.Triggerbot.Enabled and "Triggerbot: ON" or "Triggerbot: OFF"
-    triggerEnabledBtn.Parent = triggerContent
-    Instance.new("UICorner", triggerEnabledBtn).CornerRadius = UDim.new(0, 6)
-    UIElements.TriggerEnabledBtn = triggerEnabledBtn
+    -- State Label
+    local stateLabel = Instance.new("TextLabel")
+    stateLabel.Size = UDim2.new(1, -10, 0, 30)
+    stateLabel.Position = UDim2.new(0, 5, 0, 5)
+    stateLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    stateLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    stateLabel.TextScaled = true
+    stateLabel.BorderSizePixel = 0
+    stateLabel.Text = "Trigger state: " .. State.Triggerbot.State
+    stateLabel.Parent = debugContent
+    Instance.new("UICorner", stateLabel).CornerRadius = UDim.new(0, 6)
+    UIElements.StateLabel = stateLabel
     
-    -- Sample Count Label
-    local sampleLabel = Instance.new("TextLabel")
-    sampleLabel.Size = UDim2.new(1, -10, 0, 24)
-    sampleLabel.Position = UDim2.new(0, 5, 0, 45)
-    sampleLabel.BackgroundTransparency = 1
-    sampleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    sampleLabel.TextScaled = true
-    sampleLabel.Text = "Sample Count: " .. Config.Triggerbot.SampleCount
-    sampleLabel.Parent = triggerContent
-    UIElements.SampleLabel = sampleLabel
+    -- Debug Info
+    local debugInfo = Instance.new("TextLabel")
+    debugInfo.Size = UDim2.new(1, -10, 0, 70)
+    debugInfo.Position = UDim2.new(0, 5, 0, 40)
+    debugInfo.BackgroundTransparency = 1
+    debugInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+    debugInfo.TextScaled = true
+    debugInfo.TextWrapped = true
+    debugInfo.Text = 
+        "DISARMED: V not held\n" ..
+        "ARMED: Ready, V can be held\n" ..
+        "HOLDING: V held, scanning\n" ..
+        "TARGET: enemy in cursor"
+    debugInfo.Parent = debugContent
     
-    -- Sample Count Slider
-    local sampleSlider = Instance.new("Frame")
-    sampleSlider.Size = UDim2.new(0, 260, 0, 20)
-    sampleSlider.Position = UDim2.new(0, 20, 0, 70)
-    sampleSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    sampleSlider.BorderSizePixel = 0
-    sampleSlider.Parent = triggerContent
-    Instance.new("UICorner", sampleSlider).CornerRadius = UDim.new(0, 4)
-    
-    local sampleSliderFill = Instance.new("Frame")
-    sampleSliderFill.Size = UDim2.new((Config.Triggerbot.SampleCount - 1) / 12, 0, 1, 0)
-    sampleSliderFill.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-    sampleSliderFill.BorderSizePixel = 0
-    sampleSliderFill.Parent = sampleSlider
-    Instance.new("UICorner", sampleSliderFill).CornerRadius = UDim.new(0, 4)
-    UIElements.SampleSliderFill = sampleSliderFill
-    
-    -- Max Distance Label
-    local distLabel = Instance.new("TextLabel")
-    distLabel.Size = UDim2.new(1, -10, 0, 24)
-    distLabel.Position = UDim2.new(0, 5, 0, 95)
-    distLabel.BackgroundTransparency = 1
-    distLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    distLabel.TextScaled = true
-    distLabel.Text = "Max Distance: " .. Config.Triggerbot.MaxDistance .. " studs"
-    distLabel.Parent = triggerContent
-    UIElements.DistLabel = distLabel
-    
-    -- Max Distance Slider
-    local distSlider = Instance.new("Frame")
-    distSlider.Size = UDim2.new(0, 260, 0, 20)
-    distSlider.Position = UDim2.new(0, 20, 0, 120)
-    distSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    distSlider.BorderSizePixel = 0
-    distSlider.Parent = triggerContent
-    Instance.new("UICorner", distSlider).CornerRadius = UDim.new(0, 4)
-    
-    local distSliderFill = Instance.new("Frame")
-    distSliderFill.Size = UDim2.new(Config.Triggerbot.MaxDistance / 2000, 0, 1, 0)
-    distSliderFill.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-    distSliderFill.BorderSizePixel = 0
-    distSliderFill.Parent = distSlider
-    Instance.new("UICorner", distSliderFill).CornerRadius = UDim.new(0, 4)
-    UIElements.DistSliderFill = distSliderFill
-    
-    -- Debounce Label
-    local debounceLabel = Instance.new("TextLabel")
-    debounceLabel.Size = UDim2.new(1, -10, 0, 24)
-    debounceLabel.Position = UDim2.new(0, 5, 0, 145)
-    debounceLabel.BackgroundTransparency = 1
-    debounceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    debounceLabel.TextScaled = true
-    debounceLabel.Text = "Debounce: " .. math.floor(Config.Triggerbot.DebounceTime * 1000) .. " ms"
-    debounceLabel.Parent = triggerContent
-    UIElements.DebounceLabel = debounceLabel
-    
-    -- Debounce Slider
-    local debounceSlider = Instance.new("Frame")
-    debounceSlider.Size = UDim2.new(0, 260, 0, 20)
-    debounceSlider.Position = UDim2.new(0, 20, 0, 170)
-    debounceSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    debounceSlider.BorderSizePixel = 0
-    debounceSlider.Parent = triggerContent
-    Instance.new("UICorner", debounceSlider).CornerRadius = UDim.new(0, 4)
-    
-    local debounceSliderFill = Instance.new("Frame")
-    debounceSliderFill.Size = UDim2.new(Config.Triggerbot.DebounceTime / 0.5, 0, 1, 0)
-    debounceSliderFill.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-    debounceSliderFill.BorderSizePixel = 0
-    debounceSliderFill.Parent = debounceSlider
-    Instance.new("UICorner", debounceSliderFill).CornerRadius = UDim.new(0, 4)
-    UIElements.DebounceSliderFill = debounceSliderFill
-    
-    -- ESP Content
-    local espContent = Instance.new("Frame")
-    espContent.Size = UDim2.new(1, -10, 1, -90)
-    espContent.Position = UDim2.new(0, 5, 0, 60)
-    espContent.BackgroundTransparency = 1
-    espContent.Name = "ESPContent"
-    espContent.Visible = false
-    espContent.Parent = mainFrame
-    UIElements.ESPContent = espContent
-    
-    -- ESP Armed Toggle
-    local espArmedBtn = Instance.new("TextButton")
-    espArmedBtn.Size = UDim2.new(0, 260, 0, 36)
-    espArmedBtn.Position = UDim2.new(0, 20, 0, 5)
-    espArmedBtn.BackgroundColor3 = State.ESP.Armed and Color3.fromRGB(50, 120, 50) or Color3.fromRGB(50, 50, 50)
-    espArmedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    espArmedBtn.TextScaled = true
-    espArmedBtn.BorderSizePixel = 0
-    espArmedBtn.Text = State.ESP.Armed and "ESP Armed: ON" or "ESP Armed: OFF"
-    espArmedBtn.Parent = espContent
-    Instance.new("UICorner", espArmedBtn).CornerRadius = UDim.new(0, 6)
-    UIElements.ESPArmedBtn = espArmedBtn
+    -- Settings Content
+    local settingsContent = Instance.new("Frame")
+    settingsContent.Size = UDim2.new(1, -10, 1, -90)
+    settingsContent.Position = UDim2.new(0, 5, 0, 60)
+    settingsContent.BackgroundTransparency = 1
+    settingsContent.Name = "SettingsContent"
+    settingsContent.Visible = false
+    settingsContent.Parent = mainFrame
+    UIElements.SettingsContent = settingsContent
     
     -- Color Picker Frame
     local pickerFrame = Instance.new("Frame")
     pickerFrame.Size = UDim2.new(0, 210, 0, 160)
-    pickerFrame.Position = UDim2.new(0, 10, 0, 50)
+    pickerFrame.Position = UDim2.new(0, 10, 0, 5)
     pickerFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     pickerFrame.BorderSizePixel = 0
-    pickerFrame.Parent = espContent
+    pickerFrame.Parent = settingsContent
     Instance.new("UICorner", pickerFrame).CornerRadius = UDim.new(0, 6)
     
     -- Saturation/Value Square
@@ -729,102 +726,43 @@ local function CreateUI()
     -- Apply Buttons
     local applyFill = Instance.new("TextButton")
     applyFill.Size = UDim2.new(0, 120, 0, 24)
-    applyFill.Position = UDim2.new(0, 230, 0, 60)
+    applyFill.Position = UDim2.new(0, 230, 0, 20)
     applyFill.BackgroundColor3 = Color3.fromRGB(60, 120, 60)
     applyFill.TextColor3 = Color3.fromRGB(255, 255, 255)
     applyFill.TextScaled = true
     applyFill.Text = "Apply to Fill"
     applyFill.BorderSizePixel = 0
-    applyFill.Parent = espContent
+    applyFill.Parent = settingsContent
     Instance.new("UICorner", applyFill).CornerRadius = UDim.new(0, 4)
     UIElements.ApplyFill = applyFill
     
     local applyOutline = applyFill:Clone()
     applyOutline.Text = "Apply to Outline"
-    applyOutline.Position = UDim2.new(0, 230, 0, 90)
-    applyOutline.Parent = espContent
+    applyOutline.Position = UDim2.new(0, 230, 0, 50)
+    applyOutline.Parent = settingsContent
     Instance.new("UICorner", applyOutline).CornerRadius = UDim.new(0, 4)
     UIElements.ApplyOutline = applyOutline
-    
-    -- Debug Content
-    local debugContent = Instance.new("Frame")
-    debugContent.Size = UDim2.new(1, -10, 1, -90)
-    debugContent.Position = UDim2.new(0, 5, 0, 60)
-    debugContent.BackgroundTransparency = 1
-    debugContent.Name = "DebugContent"
-    debugContent.Visible = false
-    debugContent.Parent = mainFrame
-    UIElements.DebugContent = debugContent
-    
-    -- State Label
-    local stateLabel = Instance.new("TextLabel")
-    stateLabel.Size = UDim2.new(1, -10, 0, 30)
-    stateLabel.Position = UDim2.new(0, 5, 0, 5)
-    stateLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    stateLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    stateLabel.TextScaled = true
-    stateLabel.BorderSizePixel = 0
-    stateLabel.Text = "Trigger state: " .. State.Triggerbot.State
-    stateLabel.Parent = debugContent
-    Instance.new("UICorner", stateLabel).CornerRadius = UDim.new(0, 6)
-    UIElements.StateLabel = stateLabel
-    
-    -- Debug Info
-    local debugInfo = Instance.new("TextLabel")
-    debugInfo.Size = UDim2.new(1, -10, 0, 70)
-    debugInfo.Position = UDim2.new(0, 5, 0, 40)
-    debugInfo.BackgroundTransparency = 1
-    debugInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
-    debugInfo.TextScaled = true
-    debugInfo.TextWrapped = true
-    debugInfo.Text = 
-        "DISARMED: V not held\n" ..
-        "ARMED: Ready, V can be held\n" ..
-        "HOLDING: V held, scanning\n" ..
-        "TARGET: enemy in cursor"
-    debugInfo.Parent = debugContent
-    
-    -- Config Info
-    local configInfo = Instance.new("TextLabel")
-    configInfo.Size = UDim2.new(1, -10, 0, 80)
-    configInfo.Position = UDim2.new(0, 5, 0, 115)
-    configInfo.BackgroundTransparency = 1
-    configInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
-    configInfo.TextScaled = true
-    configInfo.TextWrapped = true
-    configInfo.Text = 
-        "Current Config:\n" ..
-        "Sample Count: " .. Config.Triggerbot.SampleCount .. "\n" ..
-        "Max Distance: " .. Config.Triggerbot.MaxDistance .. " studs\n" ..
-        "Debounce: " .. math.floor(Config.Triggerbot.DebounceTime * 1000) .. " ms"
-    configInfo.Parent = debugContent
-    UIElements.ConfigInfo = configInfo
     
     -- Tab switching function
     local function setTab(which)
         mainContent.Visible = (which == "main")
-        triggerContent.Visible = (which == "trigger")
-        espContent.Visible = (which == "esp")
         debugContent.Visible = (which == "debug")
+        settingsContent.Visible = (which == "settings")
         
         mainTab.BackgroundColor3 = (which == "main") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
         mainTab.TextColor3 = (which == "main") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
         
-        triggerTab.BackgroundColor3 = (which == "trigger") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
-        triggerTab.TextColor3 = (which == "trigger") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-        
-        espTab.BackgroundColor3 = (which == "esp") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
-        espTab.TextColor3 = (which == "esp") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-        
         debugTab.BackgroundColor3 = (which == "debug") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
         debugTab.TextColor3 = (which == "debug") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+        
+        settingsTab.BackgroundColor3 = (which == "settings") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+        settingsTab.TextColor3 = (which == "settings") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
     end
     
     -- Tab click handlers
     mainTab.MouseButton1Click:Connect(function() setTab("main") end)
-    triggerTab.MouseButton1Click:Connect(function() setTab("trigger") end)
-    espTab.MouseButton1Click:Connect(function() setTab("esp") end)
     debugTab.MouseButton1Click:Connect(function() setTab("debug") end)
+    settingsTab.MouseButton1Click:Connect(function() setTab("settings") end)
     
     -- ESP Toggle handler
     espToggle.MouseButton1Click:Connect(function()
@@ -834,6 +772,8 @@ local function CreateUI()
         if not State.ESP.Enabled then
             ESPSystem:ClearAll()
         end
+        
+        SaveSettings()
     end)
     
     -- Kill button handler
@@ -850,20 +790,6 @@ local function CreateUI()
         end
     end)
     
-    -- Triggerbot enabled toggle
-    triggerEnabledBtn.MouseButton1Click:Connect(function()
-        Config.Triggerbot.Enabled = not Config.Triggerbot.Enabled
-        triggerEnabledBtn.Text = Config.Triggerbot.Enabled and "Triggerbot: ON" or "Triggerbot: OFF"
-        triggerEnabledBtn.BackgroundColor3 = Config.Triggerbot.Enabled and Color3.fromRGB(50, 120, 50) or Color3.fromRGB(50, 50, 50)
-    end)
-    
-    -- ESP Armed toggle
-    espArmedBtn.MouseButton1Click:Connect(function()
-        State.ESP.Armed = not State.ESP.Armed
-        espArmedBtn.Text = State.ESP.Armed and "ESP Armed: ON" or "ESP Armed: OFF"
-        espArmedBtn.BackgroundColor3 = State.ESP.Armed and Color3.fromRGB(50, 120, 50) or Color3.fromRGB(50, 50, 50)
-    end)
-    
     -- Apply button handlers
     applyFill.MouseButton1Click:Connect(function()
         Config.ESP.FillColor = preview.BackgroundColor3
@@ -871,6 +797,8 @@ local function CreateUI()
         for _, highlight in pairs(State.ESP.Highlights) do
             highlight.FillColor = Config.ESP.FillColor
         end
+        
+        SaveSettings()
     end)
     
     applyOutline.MouseButton1Click:Connect(function()
@@ -879,224 +807,207 @@ local function CreateUI()
         for _, highlight in pairs(State.ESP.Highlights) do
             highlight.OutlineColor = Config.ESP.OutlineColor
         end
+        
+        SaveSettings()
     end)
-    
-    -- Slider interactions
-    local function setupSlider(sliderFrame, fill, min, max, callback)
-        local dragging = false
-        
-        sliderFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = true
-                SetUIDragging(false)
-                
-                local mouse = UserInputService:GetMouseLocation()
-                local relX = mouse.X - sliderFrame.AbsolutePosition.X
-                local t = math.clamp(relX / sliderFrame.AbsoluteSize.X, 0, 1)
-                local val = min + t * (max - min)
-                callback(val, t)
-            end
-        end)
-        
-        UserInputService.InputChanged:Connect(function(input)
-            if not dragging then return end
-            if input.UserInputType == Enum.UserInputType.MouseMovement then
-                local mouse = UserInputService:GetMouseLocation()
-                local relX = mouse.X - sliderFrame.AbsolutePosition.X
-                local t = math.clamp(relX / sliderFrame.AbsoluteSize.X, 0, 1)
-                local val = min + t * (max - min)
-                callback(val, t)
-            end
-        end)
-        
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                if dragging then
-                    dragging = false
-                    SetUIDragging(true)
-                end
-            end
-        end)
-    end
-    
-    -- Sample count slider
-    setupSlider(sampleSlider, sampleSliderFill, 1, 13, function(val, t)
-        Config.Triggerbot.SampleCount = math.floor(val)
-        sampleLabel.Text = "Sample Count: " .. Config.Triggerbot.SampleCount
-        sampleSliderFill.Size = UDim2.new(t, 0, 1, 0)
-    end)
-    
-    -- Max distance slider
-    setupSlider(distSlider, distSliderFill, 100, 2000, function(val, t)
-        Config.Triggerbot.MaxDistance = math.floor(val)
-        distLabel.Text = "Max Distance: " .. Config.Triggerbot.MaxDistance .. " studs"
-        distSliderFill.Size = UDim2.new(t, 0, 1, 0)
-    end)
-    
-    -- Debounce slider
-    setupSlider(debounceSlider, debounceSliderFill, 10, 500, function(val, t)
-        Config.Triggerbot.DebounceTime = val / 1000
-        debounceLabel.Text = "Debounce: " .. math.floor(val) .. " ms"
-        debounceSliderFill.Size = UDim2.new(t, 0, 1, 0)
-    end)
-    
-    -- Color Picker Input Handling (MOVED INSIDE CreateUI - THIS WAS THE BUG!)
-    svSquare.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            SetUIDragging(false)
-            
-            local moveConn, endConn
-            
-            moveConn = UserInputService.InputChanged:Connect(function(i)
-                if i.UserInputType == Enum.UserInputType.MouseMovement then
-                    local mouse = UserInputService:GetMouseLocation()
-                    local relX = mouse.X - svSquare.AbsolutePosition.X
-                    local relY = mouse.Y - svSquare.AbsolutePosition.Y
-                    
-                    local sx = math.clamp(relX / svSquare.AbsoluteSize.X, 0, 1)
-                    local sy = math.clamp(relY / svSquare.AbsoluteSize.Y, 0, 1)
-                    
-                    currentS = sx
-                    currentV = 1 - sy
-                    
-                    UpdateColorPickerFromHSV()
-                end
-            end)
-            
-            endConn = UserInputService.InputEnded:Connect(function(i2)
-                if i2.UserInputType == Enum.UserInputType.MouseButton1 then
-                    moveConn:Disconnect()
-                    endConn:Disconnect()
-                    SetUIDragging(true)
-                end
-            end)
-        end
-    end)
-    
-    hueBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            SetUIDragging(false)
-            
-            local moveConn, endConn
-            
-            moveConn = UserInputService.InputChanged:Connect(function(i)
-                if i.UserInputType == Enum.UserInputType.MouseMovement then
-                    local mouse = UserInputService:GetMouseLocation()
-                    local relY = mouse.Y - hueBar.AbsolutePosition.Y
-                    
-                    local t = math.clamp(relY / hueBar.AbsoluteSize.Y, 0, 1)
-                    
-                    currentHue = (1 - t) * 360
-                    
-                    UpdateColorPickerFromHSV()
-                end
-            end)
-            
-            endConn = UserInputService.InputEnded:Connect(function(i2)
-                if i2.UserInputType == Enum.UserInputType.MouseButton1 then
-                    moveConn:Disconnect()
-                    endConn:Disconnect()
-                    SetUIDragging(true)
-                end
-            end)
-        end
-    end)
-    
-    -- Initialize color picker
-    UpdateColorPickerFromHSV()
-    
-    -- UI Resizing
-    do
-        local resizing = false
-        local startMousePos
-        local startSize
-        local oldDraggable
-        
-        resizeHandle.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                resizing = true
-                startMousePos = UserInputService:GetMouseLocation()
-                startSize = mainFrame.Size
-                
-                oldDraggable = mainFrame.Draggable
-                mainFrame.Draggable = false
-            end
-        end)
-        
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                if resizing then
-                    resizing = false
-                    mainFrame.Draggable = oldDraggable ~= nil and oldDraggable or true
-                end
-            end
-        end)
-        
-        UserInputService.InputChanged:Connect(function(input)
-            if not resizing then return end
-            if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-            
-            local currentPos = UserInputService:GetMouseLocation()
-            local dx = currentPos.X - startMousePos.X
-            local dy = currentPos.Y - startMousePos.Y
-            
-            local newW = math.max(350, startSize.X.Offset + dx)
-            local newH = math.max(280, startSize.Y.Offset + dy)
-            
-            mainFrame.Size = UDim2.new(0, newW, 0, newH)
-        end)
-    end
-    
-    -- Input Handling
-    table.insert(State.Connections, UserInputService.InputBegan:Connect(function(input, gp)
-        if gp then return end
-        
-        if input.KeyCode == Enum.KeyCode.RightShift then
-            mainFrame.Visible = not mainFrame.Visible
-        end
-        
-        if input.KeyCode == Enum.KeyCode.L then
-            State.ESP.Armed = not State.ESP.Armed
-        end
-        
-        if input.KeyCode == Enum.KeyCode.V then
-            State.Triggerbot.Held = true
-            State.Triggerbot.State = "HOLDING"
-        end
-    end))
-    
-    table.insert(State.Connections, UserInputService.InputEnded:Connect(function(input)
-        if input.KeyCode == Enum.KeyCode.V then
-            State.Triggerbot.Held = false
-            
-            if State.Triggerbot.State ~= "DISARMED" then
-                State.Triggerbot.State = "ARMED"
-            end
-            
-            State.Triggerbot.Clicked = false
-        end
-    end))
-    
-    -- Main Game Loop
-    table.insert(State.Connections, RunService.RenderStepped:Connect(function()
-        if not State.Running then return end
-        
-        ESPSystem:Update()
-        ProcessTriggerbot()
-        
-        if stateLabel then
-            stateLabel.Text = "Trigger state: " .. State.Triggerbot.State
-        end
-        
-        if configInfo then
-            configInfo.Text = 
-                "Current Config:\n" ..
-                "Sample Count: " .. Config.Triggerbot.SampleCount .. "\n" ..
-                "Max Distance: " .. Config.Triggerbot.MaxDistance .. " studs\n" ..
-                "Debounce: " .. math.floor(Config.Triggerbot.DebounceTime * 1000) .. " ms"
-        end
-    end))
 end
+
+------------------------------------------------------------------
+-- COLOR PICKER LOGIC
+------------------------------------------------------------------
+
+local ColorPickerState = {
+    Hue = 0,
+    Saturation = 1,
+    Value = 1,
+}
+
+local function UpdateColorPickerFromHSV()
+    local color = Color3.fromHSV(ColorPickerState.Hue / 360, ColorPickerState.Saturation, ColorPickerState.Value)
+    
+    UIElements.Preview.BackgroundColor3 = color
+    UIElements.SVSquare.BackgroundColor3 = Color3.fromHSV(ColorPickerState.Hue / 360, 1, 1)
+    UIElements.SVSquare.BackgroundTransparency = 0
+    
+    UIElements.SVSelector.Position = UDim2.new(ColorPickerState.Saturation, 0, 1 - ColorPickerState.Value, 0)
+    UIElements.HueSelector.Position = UDim2.new(0.5, 0, 1 - (ColorPickerState.Hue / 360), 0)
+end
+
+local function SetUIDragging(enabled)
+    if UIElements.MainFrame then
+        UIElements.MainFrame.Draggable = enabled
+    end
+end
+
+-- SV Square input handling
+UIElements.SVSquare.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        SetUIDragging(false)
+        
+        local moveConn, endConn
+        
+        moveConn = UserInputService.InputChanged:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseMovement then
+                local mouse = UserInputService:GetMouseLocation()
+                local relX = mouse.X - UIElements.SVSquare.AbsolutePosition.X
+                local relY = mouse.Y - UIElements.SVSquare.AbsolutePosition.Y
+                
+                local sx = math.clamp(relX / UIElements.SVSquare.AbsoluteSize.X, 0, 1)
+                local sy = math.clamp(relY / UIElements.SVSquare.AbsoluteSize.Y, 0, 1)
+                
+                ColorPickerState.Saturation = sx
+                ColorPickerState.Value = 1 - sy
+                
+                UpdateColorPickerFromHSV()
+            end
+        end)
+        
+        endConn = UserInputService.InputEnded:Connect(function(i2)
+            if i2.UserInputType == Enum.UserInputType.MouseButton1 then
+                moveConn:Disconnect()
+                endConn:Disconnect()
+                SetUIDragging(true)
+            end
+        end)
+    end
+end)
+
+-- Hue Bar input handling
+UIElements.HueBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        SetUIDragging(false)
+        
+        local moveConn, endConn
+        
+        moveConn = UserInputService.InputChanged:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseMovement then
+                local mouse = UserInputService:GetMouseLocation()
+                local relY = mouse.Y - UIElements.HueBar.AbsolutePosition.Y
+                
+                local t = math.clamp(relY / UIElements.HueBar.AbsoluteSize.Y, 0, 1)
+                ColorPickerState.Hue = (1 - t) * 360
+                
+                UpdateColorPickerFromHSV()
+            end
+        end)
+        
+        endConn = UserInputService.InputEnded:Connect(function(i2)
+            if i2.UserInputType == Enum.UserInputType.MouseButton1 then
+                moveConn:Disconnect()
+                endConn:Disconnect()
+                SetUIDragging(true)
+            end
+        end)
+    end
+end)
+
+-- Initialize color picker
+UpdateColorPickerFromHSV()
+
+------------------------------------------------------------------
+-- UI RESIZING
+------------------------------------------------------------------
+
+do
+    local resizing = false
+    local startMousePos
+    local startSize
+    local oldDraggable
+    
+    UIElements.ResizeHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            resizing = true
+            startMousePos = UserInputService:GetMouseLocation()
+            startSize = UIElements.MainFrame.Size
+            
+            oldDraggable = UIElements.MainFrame.Draggable
+            UIElements.MainFrame.Draggable = false
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if resizing then
+                resizing = false
+                UIElements.MainFrame.Draggable = oldDraggable ~= nil and oldDraggable or true
+            end
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if not resizing then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+        
+        local currentPos = UserInputService:GetMouseLocation()
+        local dx = currentPos.X - startMousePos.X
+        local dy = currentPos.Y - startMousePos.Y
+        
+        local newW = math.max(300, startSize.X.Offset + dx)
+        local newH = math.max(220, startSize.Y.Offset + dy)
+        
+        UIElements.MainFrame.Size = UDim2.new(0, newW, 0, newH)
+        SaveSettings()
+    end)
+end
+
+------------------------------------------------------------------
+-- INPUT HANDLING
+------------------------------------------------------------------
+
+-- UI Toggle (RightShift)
+table.insert(State.Connections, UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        UIElements.MainFrame.Visible = not UIElements.MainFrame.Visible
+        State.UI.Visible = UIElements.MainFrame.Visible
+    end
+end))
+
+-- L key (ESP Arm/Disarm) and V key (Triggerbot hold)
+table.insert(State.Connections, UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    
+    if input.KeyCode == Enum.KeyCode.L then
+        State.ESP.Armed = not State.ESP.Armed
+    end
+    
+    if input.KeyCode == Enum.KeyCode.V then
+        State.Triggerbot.Held = true
+        State.Triggerbot.State = "HOLDING"
+    end
+end))
+
+table.insert(State.Connections, UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.V then
+        State.Triggerbot.Held = false
+        
+        if State.Triggerbot.State ~= "DISARMED" then
+            State.Triggerbot.State = "ARMED"
+        end
+        
+        State.Triggerbot.Clicked = false
+    end
+end))
+
+------------------------------------------------------------------
+-- MAIN GAME LOOP
+------------------------------------------------------------------
+
+table.insert(State.Connections, RunService.RenderStepped:Connect(function()
+    if not State.Running then return end
+    
+    -- Update ESP system
+    ESPSystem:Update()
+    
+    -- Process triggerbot
+    ProcessTriggerbot()
+    
+    -- Update debug UI
+    if UIElements.StateLabel then
+        UIElements.StateLabel.Text = "Trigger state: " .. State.Triggerbot.State
+    end
+end))
 
 ------------------------------------------------------------------
 -- INITIALIZATION
