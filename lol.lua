@@ -1199,4 +1199,5 @@ end
 
 print("[ESP+Triggerbot] Starting UI creation...")
 CreateUI()
+ESPSystem:Init()
 print("[ESP+Triggerbot] Initialization complete!")
