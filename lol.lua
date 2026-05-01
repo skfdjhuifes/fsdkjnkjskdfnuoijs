@@ -278,6 +278,56 @@ function ESPSystem:ClearAll()
     State.ESP.Highlights = {}
 end
 
+function ESPSystem:HandleCharacter(player, character)
+    if player == LocalPlayer then return end
+    if not State.ESP.Enabled or not State.ESP.Armed then return end
+    
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        self:CreateHighlight(character)
+    end
+end
+
+function ESPSystem:Init()
+    -- Handle existing players
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            if player.Character then
+                self:HandleCharacter(player, player.Character)
+            end
+            
+            -- Connect CharacterAdded
+            player.CharacterAdded:Connect(function(char)
+                self:HandleCharacter(player, char)
+            end)
+            
+            -- Connect CharacterRemoving
+            player.CharacterRemoving:Connect(function(char)
+                self:RemoveHighlight(char)
+            end)
+        end
+    end
+    
+    -- Handle new players joining
+    Players.PlayerAdded:Connect(function(player)
+        if player ~= LocalPlayer then
+            player.CharacterAdded:Connect(function(char)
+                self:HandleCharacter(player, char)
+            end)
+            
+            player.CharacterRemoving:Connect(function(char)
+                self:RemoveHighlight(char)
+            end)
+        end
+    end)
+    
+    -- Handle players leaving
+    Players.PlayerRemoving:Connect(function(player)
+        if player.Character then
+            self:RemoveHighlight(player.Character)
+        end
+    end)
+end
+
 function ESPSystem:Update()
     if not State.ESP.Enabled or not State.ESP.Armed then
         if next(State.ESP.Highlights) ~= nil then
@@ -286,19 +336,7 @@ function ESPSystem:Update()
         return
     end
     
-    for _, player in ipairs(GetPlayers(Players)) do
-        if player ~= LocalPlayer then
-            local character = player.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                if not State.ESP.Highlights[character] then
-                    self:CreateHighlight(character)
-                end
-            else
-                self:RemoveHighlight(character)
-            end
-        end
-    end
-    
+    -- Clean up invalid/destroyed characters
     for character, _ in pairs(State.ESP.Highlights) do
         if not character or not character.Parent then
             self:RemoveHighlight(character)
