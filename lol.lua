@@ -106,24 +106,6 @@ local function HSVToRGB(h, s, v)
     return Color3.new(r + m, g + m, b + m)
 end
 
-local function RGBToHSV(color)
-    local r, g, b = color.R, color.G, color.B
-    local max, min = math.max(r, g, b), math.min(r, g, b)
-    local d = max - min
-    local h = 0
-    
-    if d == 0 then h = 0
-    elseif max == r then h = 60 * (((g - b) / d) % 6)
-    elseif max == g then h = 60 * (((b - r) / d) + 2)
-    elseif max == b then h = 60 * (((r - g) / d) + 4)
-    end
-    
-    local s = (max == 0) and 0 or (d / max)
-    local v = max
-    
-    return h, s, v
-end
-
 ------------------------------------------------------------------
 -- RAYCASTING SYSTEM (MOUSE CURSOR-BASED)
 ------------------------------------------------------------------
@@ -900,7 +882,7 @@ local function CreateUI()
     end)
     
     -- Slider interactions
-    local function setupSlider(sliderFrame, fill, label, min, max, current, callback)
+    local function setupSlider(sliderFrame, fill, min, max, callback)
         local dragging = false
         
         sliderFrame.InputBegan:Connect(function(input)
@@ -910,10 +892,9 @@ local function CreateUI()
                 
                 local mouse = UserInputService:GetMouseLocation()
                 local relX = mouse.X - sliderFrame.AbsolutePosition.X
-                local t = math.clamp(relX / sliderFrame.AbsoluteSize.X, 0, 1) 
+                local t = math.clamp(relX / sliderFrame.AbsoluteSize.X, 0, 1)
                 local val = min + t * (max - min)
-                callback(val)
-                fill.Size = UDim2.new(t, 0, 1, 0)
+                callback(val, t)
             end
         end)
         
@@ -924,8 +905,7 @@ local function CreateUI()
                 local relX = mouse.X - sliderFrame.AbsolutePosition.X
                 local t = math.clamp(relX / sliderFrame.AbsoluteSize.X, 0, 1)
                 local val = min + t * (max - min)
-                callback(val)
-                fill.Size = UDim2.new(t, 0, 1, 0)
+                callback(val, t)
             end
         end)
         
@@ -940,202 +920,183 @@ local function CreateUI()
     end
     
     -- Sample count slider
-    setupSlider(sampleSlider, sampleSliderFill, sampleLabel, 1, 13, Config.Triggerbot.SampleCount, function(val)
+    setupSlider(sampleSlider, sampleSliderFill, 1, 13, function(val, t)
         Config.Triggerbot.SampleCount = math.floor(val)
         sampleLabel.Text = "Sample Count: " .. Config.Triggerbot.SampleCount
+        sampleSliderFill.Size = UDim2.new(t, 0, 1, 0)
     end)
     
     -- Max distance slider
-    setupSlider(distSlider, distSliderFill, distLabel, 100, 2000, Config.Triggerbot.MaxDistance, function(val)
+    setupSlider(distSlider, distSliderFill, 100, 2000, function(val, t)
         Config.Triggerbot.MaxDistance = math.floor(val)
         distLabel.Text = "Max Distance: " .. Config.Triggerbot.MaxDistance .. " studs"
+        distSliderFill.Size = UDim2.new(t, 0, 1, 0)
     end)
     
     -- Debounce slider
-    setupSlider(debounceSlider, debounceSliderFill, debounceLabel, 10, 500, Config.Triggerbot.DebounceTime * 1000, function(val)
+    setupSlider(debounceSlider, debounceSliderFill, 10, 500, function(val, t)
         Config.Triggerbot.DebounceTime = val / 1000
         debounceLabel.Text = "Debounce: " .. math.floor(val) .. " ms"
+        debounceSliderFill.Size = UDim2.new(t, 0, 1, 0)
     end)
-end
-
-------------------------------------------------------------------
--- COLOR PICKER INPUT HANDLING
-------------------------------------------------------------------
-
-UIElements.SVSquare.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        SetUIDragging(false)
-        
-        local moveConn, endConn
-        
-        moveConn = UserInputService.InputChanged:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseMovement then
-                local mouse = UserInputService:GetMouseLocation()
-                local relX = mouse.X - UIElements.SVSquare.AbsolutePosition.X
-                local relY = mouse.Y - UIElements.SVSquare.AbsolutePosition.Y
-                
-                local sx = math.clamp(relX / UIElements.SVSquare.AbsoluteSize.X, 0, 1)
-                local sy = math.clamp(relY / UIElements.SVSquare.AbsoluteSize.Y, 0, 1)
-                
-                currentS = sx
-                currentV = 1 - sy
-                
-                UpdateColorPickerFromHSV()
-            end
-        end)
-        
-        endConn = UserInputService.InputEnded:Connect(function(i2)
-            if i2.UserInputType == Enum.UserInputType.MouseButton1 then
-                moveConn:Disconnect()
-                endConn:Disconnect()
-                SetUIDragging(true)
-            end
-        end)
-    end
-end)
-
-UIElements.HueBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        SetUIDragging(false)
-        
-        local moveConn, endConn
-        
-        moveConn = UserInputService.InputChanged:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseMovement then
-                local mouse = UserInputService:GetMouseLocation()
-                local relY = mouse.Y - UIElements.HueBar.AbsolutePosition.Y
-                
-                local t = math.clamp(relY / UIElements.HueBar.AbsoluteSize.Y, 0, 1)
-                
-                currentHue = (1 - t) * 360
-                
-                UpdateColorPickerFromHSV()
-            end
-        end)
-        
-        endConn = UserInputService.InputEnded:Connect(function(i2)
-            if i2.UserInputType == Enum.UserInputType.MouseButton1 then
-                moveConn:Disconnect()
-                endConn:Disconnect()
-                SetUIDragging(true)
-            end
-        end)
-    end
-end)
-
--- Initialize color picker
-UpdateColorPickerFromHSV()
-
-------------------------------------------------------------------
--- UI RESIZING
-------------------------------------------------------------------
-
-do
-    local resizing = false
-    local startMousePos
-    local startSize
-    local oldDraggable
     
-    UIElements.ResizeHandle.InputBegan:Connect(function(input)
+    -- Color Picker Input Handling (MOVED INSIDE CreateUI - THIS WAS THE BUG!)
+    svSquare.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            resizing = true
-            startMousePos = UserInputService:GetMouseLocation()
-            startSize = UIElements.MainFrame.Size
+            SetUIDragging(false)
             
-            oldDraggable = UIElements.MainFrame.Draggable
-            UIElements.MainFrame.Draggable = false
+            local moveConn, endConn
+            
+            moveConn = UserInputService.InputChanged:Connect(function(i)
+                if i.UserInputType == Enum.UserInputType.MouseMovement then
+                    local mouse = UserInputService:GetMouseLocation()
+                    local relX = mouse.X - svSquare.AbsolutePosition.X
+                    local relY = mouse.Y - svSquare.AbsolutePosition.Y
+                    
+                    local sx = math.clamp(relX / svSquare.AbsoluteSize.X, 0, 1)
+                    local sy = math.clamp(relY / svSquare.AbsoluteSize.Y, 0, 1)
+                    
+                    currentS = sx
+                    currentV = 1 - sy
+                    
+                    UpdateColorPickerFromHSV()
+                end
+            end)
+            
+            endConn = UserInputService.InputEnded:Connect(function(i2)
+                if i2.UserInputType == Enum.UserInputType.MouseButton1 then
+                    moveConn:Disconnect()
+                    endConn:Disconnect()
+                    SetUIDragging(true)
+                end
+            end)
         end
     end)
     
-    UserInputService.InputEnded:Connect(function(input)
+    hueBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if resizing then
-                resizing = false
-                UIElements.MainFrame.Draggable = oldDraggable ~= nil and oldDraggable or true
+            SetUIDragging(false)
+            
+            local moveConn, endConn
+            
+            moveConn = UserInputService.InputChanged:Connect(function(i)
+                if i.UserInputType == Enum.UserInputType.MouseMovement then
+                    local mouse = UserInputService:GetMouseLocation()
+                    local relY = mouse.Y - hueBar.AbsolutePosition.Y
+                    
+                    local t = math.clamp(relY / hueBar.AbsoluteSize.Y, 0, 1)
+                    
+                    currentHue = (1 - t) * 360
+                    
+                    UpdateColorPickerFromHSV()
+                end
+            end)
+            
+            endConn = UserInputService.InputEnded:Connect(function(i2)
+                if i2.UserInputType == Enum.UserInputType.MouseButton1 then
+                    moveConn:Disconnect()
+                    endConn:Disconnect()
+                    SetUIDragging(true)
+                end
+            end)
+        end
+    end)
+    
+    -- Initialize color picker
+    UpdateColorPickerFromHSV()
+    
+    -- UI Resizing
+    do
+        local resizing = false
+        local startMousePos
+        local startSize
+        local oldDraggable
+        
+        resizeHandle.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                resizing = true
+                startMousePos = UserInputService:GetMouseLocation()
+                startSize = mainFrame.Size
+                
+                oldDraggable = mainFrame.Draggable
+                mainFrame.Draggable = false
             end
-        end
-    end)
+        end)
+        
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if resizing then
+                    resizing = false
+                    mainFrame.Draggable = oldDraggable ~= nil and oldDraggable or true
+                end
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if not resizing then return end
+            if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+            
+            local currentPos = UserInputService:GetMouseLocation()
+            local dx = currentPos.X - startMousePos.X
+            local dy = currentPos.Y - startMousePos.Y
+            
+            local newW = math.max(350, startSize.X.Offset + dx)
+            local newH = math.max(280, startSize.Y.Offset + dy)
+            
+            mainFrame.Size = UDim2.new(0, newW, 0, newH)
+        end)
+    end
     
-    UserInputService.InputChanged:Connect(function(input)
-        if not resizing then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+    -- Input Handling
+    table.insert(State.Connections, UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
         
-        local currentPos = UserInputService:GetMouseLocation()
-        local dx = currentPos.X - startMousePos.X
-        local dy = currentPos.Y - startMousePos.Y
+        if input.KeyCode == Enum.KeyCode.RightShift then
+            mainFrame.Visible = not mainFrame.Visible
+        end
         
-        local newW = math.max(350, startSize.X.Offset + dx)
-        local newH = math.max(280, startSize.Y.Offset + dy)
+        if input.KeyCode == Enum.KeyCode.L then
+            State.ESP.Armed = not State.ESP.Armed
+        end
         
-        UIElements.MainFrame.Size = UDim2.new(0, newW, 0, newH)
-    end)
+        if input.KeyCode == Enum.KeyCode.V then
+            State.Triggerbot.Held = true
+            State.Triggerbot.State = "HOLDING"
+        end
+    end))
+    
+    table.insert(State.Connections, UserInputService.InputEnded:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.V then
+            State.Triggerbot.Held = false
+            
+            if State.Triggerbot.State ~= "DISARMED" then
+                State.Triggerbot.State = "ARMED"
+            end
+            
+            State.Triggerbot.Clicked = false
+        end
+    end))
+    
+    -- Main Game Loop
+    table.insert(State.Connections, RunService.RenderStepped:Connect(function()
+        if not State.Running then return end
+        
+        ESPSystem:Update()
+        ProcessTriggerbot()
+        
+        if stateLabel then
+            stateLabel.Text = "Trigger state: " .. State.Triggerbot.State
+        end
+        
+        if configInfo then
+            configInfo.Text = 
+                "Current Config:\n" ..
+                "Sample Count: " .. Config.Triggerbot.SampleCount .. "\n" ..
+                "Max Distance: " .. Config.Triggerbot.MaxDistance .. " studs\n" ..
+                "Debounce: " .. math.floor(Config.Triggerbot.DebounceTime * 1000) .. " ms"
+        end
+    end))
 end
-
-------------------------------------------------------------------
--- INPUT HANDLING
-------------------------------------------------------------------
-
--- UI Toggle (RightShift)
-table.insert(State.Connections, UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    
-    if input.KeyCode == Enum.KeyCode.RightShift then
-        UIElements.MainFrame.Visible = not UIElements.MainFrame.Visible
-    end
-end))
-
--- L key (ESP Arm/Disarm) and V key (Triggerbot hold)
-table.insert(State.Connections, UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    
-    if input.KeyCode == Enum.KeyCode.L then
-        State.ESP.Armed = not State.ESP.Armed
-    end
-    
-    if input.KeyCode == Enum.KeyCode.V then
-        State.Triggerbot.Held = true
-        State.Triggerbot.State = "HOLDING"
-    end
-end))
-
-table.insert(State.Connections, UserInputService.InputEnded:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.V then
-        State.Triggerbot.Held = false
-        
-        if State.Triggerbot.State ~= "DISARMED" then
-            State.Triggerbot.State = "ARMED"
-        end
-        
-        State.Triggerbot.Clicked = false
-    end
-end))
-
-------------------------------------------------------------------
--- MAIN GAME LOOP
-------------------------------------------------------------------
-
-table.insert(State.Connections, RunService.RenderStepped:Connect(function()
-    if not State.Running then return end
-    
-    -- Update ESP system
-    ESPSystem:Update()
-    
-    -- Process triggerbot
-    ProcessTriggerbot()
-    
-    -- Update debug UI
-    if UIElements.StateLabel then
-        UIElements.StateLabel.Text = "Trigger state: " .. State.Triggerbot.State
-    end
-    
-    if UIElements.ConfigInfo then
-        UIElements.ConfigInfo.Text = 
-            "Current Config:\n" ..
-            "Sample Count: " .. Config.Triggerbot.SampleCount .. "\n" ..
-            "Max Distance: " .. Config.Triggerbot.MaxDistance .. " studs\n" ..
-            "Debounce: " .. math.floor(Config.Triggerbot.DebounceTime * 1000) .. " ms"
-    end
-end))
 
 ------------------------------------------------------------------
 -- INITIALIZATION
