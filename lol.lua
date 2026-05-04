@@ -1,3 +1,25 @@
+--[[
+    ESP + Triggerbot System (Production Quality - Fixed Initialization)
+    ====================================================================
+    
+    PLACE AS A LOCALSCRIPT IN StarterPlayerScripts OR StarterGui
+    
+    Controls:
+    - L: Arm/Disarm ESP system
+    - Hold V: Triggerbot (independent of ESP arm state)
+    - RightShift: Toggle UI visibility
+    
+    Features:
+    - Mouse cursor-based raycasting (pixel-accurate)
+    - Multi-sample raycasting for improved reliability
+    - Character part prioritization and filtering
+    - Live UI configuration (no restart needed)
+    - Enhanced UI with more settings
+    - Proper debounce logic to prevent rapid triggering
+    - Performance optimized with cached references
+    - Safe initialization with proper waiting
+]]
+
 ------------------------------------------------------------------
 -- SAFE INITIALIZATION - Wait for game to be ready
 ------------------------------------------------------------------
@@ -262,6 +284,17 @@ function ESPSystem:HandleCharacter(player, character)
     
     if character and character:FindFirstChild("HumanoidRootPart") then
         self:CreateHighlight(character)
+    end
+end
+
+function ESPSystem:RefreshAll()
+    -- Re-check all existing players when ESP is enabled/armed
+    if not State.ESP.Enabled or not State.ESP.Armed then return end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            self:HandleCharacter(player, player.Character)
+        end
     end
 end
 
@@ -900,6 +933,8 @@ local function CreateUI()
         
         if not State.ESP.Enabled then
             ESPSystem:ClearAll()
+        else
+            ESPSystem:RefreshAll()
         end
     end)
     
@@ -929,6 +964,12 @@ local function CreateUI()
         State.ESP.Armed = not State.ESP.Armed
         espArmedBtn.Text = State.ESP.Armed and "ESP Armed: ON" or "ESP Armed: OFF"
         espArmedBtn.BackgroundColor3 = State.ESP.Armed and Color3.fromRGB(50, 120, 50) or Color3.fromRGB(50, 50, 50)
+        
+        if State.ESP.Armed then
+            ESPSystem:RefreshAll()
+        else
+            ESPSystem:ClearAll()
+        end
     end)
     
     -- Apply button handlers
