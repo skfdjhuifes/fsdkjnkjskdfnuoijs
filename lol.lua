@@ -1,25 +1,3 @@
---[[
-    ESP + Triggerbot System (Production Quality - Fixed Initialization)
-    ====================================================================
-    
-    PLACE AS A LOCALSCRIPT IN StarterPlayerScripts OR StarterGui
-    
-    Controls:
-    - L: Arm/Disarm ESP system
-    - Hold V: Triggerbot (independent of ESP arm state)
-    - RightShift: Toggle UI visibility
-    
-    Features:
-    - Mouse cursor-based raycasting (pixel-accurate)
-    - Multi-sample raycasting for improved reliability
-    - Character part prioritization and filtering
-    - Live UI configuration (no restart needed)
-    - Enhanced UI with more settings
-    - Proper debounce logic to prevent rapid triggering
-    - Performance optimized with cached references
-    - Safe initialization with proper waiting
-]]
-
 ------------------------------------------------------------------
 -- SAFE INITIALIZATION - Wait for game to be ready
 ------------------------------------------------------------------
@@ -87,9 +65,9 @@ print("[ESP+Triggerbot] Services initialized")
 local Config = {
     Triggerbot = {
         Enabled = true,
-        SampleCount = 9,
+        SampleCount = 13,
         MaxDistance = 1000,
-        DebounceTime = 0.1,
+        DebounceTime = 0.01,
         FireDelay = 0.01,
     },
     ESP = {
