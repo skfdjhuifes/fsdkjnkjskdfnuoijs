@@ -287,17 +287,6 @@ function ESPSystem:HandleCharacter(player, character)
     end
 end
 
-function ESPSystem:RefreshAll()
-    -- Re-check all existing players when ESP is enabled/armed
-    if not State.ESP.Enabled or not State.ESP.Armed then return end
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            self:HandleCharacter(player, player.Character)
-        end
-    end
-end
-
 function ESPSystem:Init()
     -- Handle existing players
     for _, player in ipairs(Players:GetPlayers()) do
@@ -933,8 +922,6 @@ local function CreateUI()
         
         if not State.ESP.Enabled then
             ESPSystem:ClearAll()
-        else
-            ESPSystem:RefreshAll()
         end
     end)
     
@@ -964,12 +951,6 @@ local function CreateUI()
         State.ESP.Armed = not State.ESP.Armed
         espArmedBtn.Text = State.ESP.Armed and "ESP Armed: ON" or "ESP Armed: OFF"
         espArmedBtn.BackgroundColor3 = State.ESP.Armed and Color3.fromRGB(50, 120, 50) or Color3.fromRGB(50, 50, 50)
-        
-        if State.ESP.Armed then
-            ESPSystem:RefreshAll()
-        else
-            ESPSystem:ClearAll()
-        end
     end)
     
     -- Apply button handlers
