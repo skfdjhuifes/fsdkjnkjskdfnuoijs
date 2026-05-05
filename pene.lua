@@ -1195,7 +1195,6 @@ local function DetectCenterTarget()
                 TriggerState = "TARGET"
 
                 mouse1press()
-                task.wait(0.01)
                 mouse1release()
 
                 return
