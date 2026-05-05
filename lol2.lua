@@ -89,7 +89,7 @@ local Config = {
         Enabled = true,
         SampleCount = 13,
         MaxDistance = 1000,
-        DebounceTime = 0.1,
+        DebounceTime = 0.01,
         FireDelay = 0.01,
     },
     ESP = {
