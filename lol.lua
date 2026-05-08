@@ -1547,7 +1547,7 @@ end
 
 table.insert(
     Connections,
-    RunService.RenderStepped:Connect(function()
+    RunService.RenderStepped:Connect(function(dt)
 
         if not Running then
             return
@@ -1557,7 +1557,7 @@ table.insert(
 
         DetectCenterTarget()
 
-        DoAimAssist()
+        AimAssist:Update(dt)
 
         if stateLabel then
             stateLabel.Text = "Trigger state: " .. TriggerState
