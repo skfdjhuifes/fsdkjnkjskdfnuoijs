@@ -176,16 +176,15 @@ local screenGui
 local mainFrame
 local resizeHandle
 
-local mainTab
-local debugTab
-local settingsTab
+local espTab
+local camTab
+local miscTab
 
-local mainContent
-local debugContent
-local settingsContent
+local espContent
+local camContent
+local miscContent
 
 local espToggle
-local stateLabel
 local killButton
 
 local svSquare
@@ -294,65 +293,65 @@ local function createUI()
 
 
     ------------------------------------------------------------------
-    -- MAIN TAB
+    -- ESP TAB
     ------------------------------------------------------------------
 
-    mainTab = Instance.new("TextButton")
-    mainTab.Size = UDim2.new(1/3, -5, 1, 0)
-    mainTab.Position = UDim2.new(0, 0, 0, 0)
-    mainTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    mainTab.TextColor3 = Color3.fromRGB(255, 255, 255)
-    mainTab.TextScaled = true
-    mainTab.Text = "Main"
-    mainTab.BorderSizePixel = 0
-    mainTab.Parent = tabBar
+    espTab = Instance.new("TextButton")
+    espTab.Size = UDim2.new(1/3, -5, 1, 0)
+    espTab.Position = UDim2.new(0, 0, 0, 0)
+    espTab.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    espTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+    espTab.TextScaled = true
+    espTab.Text = "ESP"
+    espTab.BorderSizePixel = 0
+    espTab.Parent = tabBar
 
-    Instance.new("UICorner", mainTab).CornerRadius = UDim.new(0, 6)
-
-
-    ------------------------------------------------------------------
-    -- DEBUG TAB
-    ------------------------------------------------------------------
-
-    debugTab = Instance.new("TextButton")
-    debugTab.Size = UDim2.new(1/3, -5, 1, 0)
-    debugTab.Position = UDim2.new(1/3, 5, 0, 0)
-    debugTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    debugTab.TextColor3 = Color3.fromRGB(200, 200, 200)
-    debugTab.TextScaled = true
-    debugTab.Text = "Debug"
-    debugTab.BorderSizePixel = 0
-    debugTab.Parent = tabBar
-
-    Instance.new("UICorner", debugTab).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", espTab).CornerRadius = UDim.new(0, 6)
 
 
     ------------------------------------------------------------------
-    -- SETTINGS TAB
+    -- CAM TAB
     ------------------------------------------------------------------
 
-    settingsTab = Instance.new("TextButton")
-    settingsTab.Size = UDim2.new(1/3, -5, 1, 0)
-    settingsTab.Position = UDim2.new(2/3, 10, 0, 0)
-    settingsTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    settingsTab.TextColor3 = Color3.fromRGB(200, 200, 200)
-    settingsTab.TextScaled = true
-    settingsTab.Text = "ESP Settings"
-    settingsTab.BorderSizePixel = 0
-    settingsTab.Parent = tabBar
+    camTab = Instance.new("TextButton")
+    camTab.Size = UDim2.new(1/3, -5, 1, 0)
+    camTab.Position = UDim2.new(1/3, 5, 0, 0)
+    camTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    camTab.TextColor3 = Color3.fromRGB(200, 200, 200)
+    camTab.TextScaled = true
+    camTab.Text = "Cam"
+    camTab.BorderSizePixel = 0
+    camTab.Parent = tabBar
 
-    Instance.new("UICorner", settingsTab).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", camTab).CornerRadius = UDim.new(0, 6)
+
+
+    ------------------------------------------------------------------
+    -- MISC TAB
+    ------------------------------------------------------------------
+
+    miscTab = Instance.new("TextButton")
+    miscTab.Size = UDim2.new(1/3, -5, 1, 0)
+    miscTab.Position = UDim2.new(2/3, 10, 0, 0)
+    miscTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    miscTab.TextColor3 = Color3.fromRGB(200, 200, 200)
+    miscTab.TextScaled = true
+    miscTab.Text = "Misc"
+    miscTab.BorderSizePixel = 0
+    miscTab.Parent = tabBar
+
+    Instance.new("UICorner", miscTab).CornerRadius = UDim.new(0, 6)
 
         ------------------------------------------------------------------
-    -- MAIN CONTENT
+    -- ESP CONTENT
     ------------------------------------------------------------------
 
-    mainContent = Instance.new("Frame")
-    mainContent.Size = UDim2.new(1, -10, 1, -90)
-    mainContent.Position = UDim2.new(0, 5, 0, 60)
-    mainContent.BackgroundTransparency = 1
-    mainContent.Name = "MainContent"
-    mainContent.Parent = mainFrame
+    espContent = Instance.new("Frame")
+    espContent.Size = UDim2.new(1, -10, 1, -90)
+    espContent.Position = UDim2.new(0, 5, 0, 60)
+    espContent.BackgroundTransparency = 1
+    espContent.Name = "ESPContent"
+    espContent.Parent = mainFrame
 
 
     espToggle = Instance.new("TextButton")
@@ -363,7 +362,7 @@ local function createUI()
     espToggle.TextScaled = true
     espToggle.BorderSizePixel = 0
     espToggle.Text = ESP.Enabled and "ESP: ON" or "ESP: OFF"
-    espToggle.Parent = mainContent
+    espToggle.Parent = espContent
 
     Instance.new("UICorner", espToggle).CornerRadius = UDim.new(0, 6)
 
@@ -376,301 +375,15 @@ local function createUI()
     info.TextScaled = true
     info.TextWrapped = true
     info.Text = "L = Arm/Disarm | Hold V = Trigger | RightShift = Hide UI"
-    info.Parent = mainContent
-
-    ------------------------------------------------------------------
-    -- AIM ASSIST TOGGLE
-    ------------------------------------------------------------------
-
-    local aaToggle = Instance.new("TextButton")
-    aaToggle.Size = UDim2.new(0, 260, 0, 30)
-    aaToggle.Position = UDim2.new(0, 20, 0, 88)
-    aaToggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    aaToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    aaToggle.TextScaled = true
-    aaToggle.BorderSizePixel = 0
-    aaToggle.Text = AimAssist.Enabled and "Aim Assist: ON" or "Aim Assist: OFF"
-    aaToggle.Parent = mainContent
-    Instance.new("UICorner", aaToggle).CornerRadius = UDim.new(0, 6)
-
-    aaToggle.MouseButton1Click:Connect(function()
-        AimAssist.Enabled = not AimAssist.Enabled
-        aaToggle.Text = AimAssist.Enabled and "Aim Assist: ON" or "Aim Assist: OFF"
-        SaveSettings()
-    end)
-
-    ------------------------------------------------------------------
-    -- AIM ASSIST STRENGTH SLIDER
-    ------------------------------------------------------------------
-
-    local sliderBg = Instance.new("Frame")
-    sliderBg.Size = UDim2.new(0, 260, 0, 20)
-    sliderBg.Position = UDim2.new(0, 20, 0, 124)
-    sliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    sliderBg.BorderSizePixel = 0
-    sliderBg.Parent = mainContent
-    Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(0, 4)
-
-    local sliderFill = Instance.new("Frame")
-    sliderFill.Size = UDim2.new(AimAssist.Strength, 0, 1, 0)
-    sliderFill.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
-    sliderFill.BorderSizePixel = 0
-    sliderFill.Parent = sliderBg
-    Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 4)
-
-    local sliderLabel = Instance.new("TextLabel")
-    sliderLabel.Size = UDim2.new(1, 0, 1, 0)
-    sliderLabel.BackgroundTransparency = 1
-    sliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    sliderLabel.TextScaled = true
-    sliderLabel.Text = "Strength: " .. math.floor(AimAssist.Strength * 100) .. "%"
-    sliderLabel.Parent = sliderBg
-
-    do
-        local dragging = false
-        local function updateSlider()
-            local mouse = UserInputService:GetMouseLocation()
-            local relX = mouse.X - sliderBg.AbsolutePosition.X
-            local t = math.clamp(relX / sliderBg.AbsoluteSize.X, 0, 1)
-            AimAssist.Strength = t
-            sliderFill.Size = UDim2.new(t, 0, 1, 0)
-            sliderLabel.Text = "Strength: " .. math.floor(t * 100) .. "%"
-            SaveSettings()
-        end
-
-        sliderBg.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = true
-                setDragging(false)
-                updateSlider()
-            end
-        end)
-
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = false
-                setDragging(true)
-            end
-        end)
-
-        UserInputService.InputChanged:Connect(function(input)
-            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                updateSlider()
-            end
-        end)
-    end
-
-    ------------------------------------------------------------------
-    -- WALK SPEED SLIDER
-    ------------------------------------------------------------------
-
-    local wsLabel = Instance.new("TextLabel")
-    wsLabel.Size = UDim2.new(0, 130, 0, 20)
-    wsLabel.Position = UDim2.new(0, 20, 0, 150)
-    wsLabel.BackgroundTransparency = 1
-    wsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    wsLabel.TextScaled = true
-    wsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    wsLabel.Text = "WalkSpeed: " .. tostring(Settings.WalkSpeed)
-    wsLabel.Parent = mainContent
-
-    local wsSliderBg = Instance.new("Frame")
-    wsSliderBg.Size = UDim2.new(0, 260, 0, 16)
-    wsSliderBg.Position = UDim2.new(0, 20, 0, 172)
-    wsSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    wsSliderBg.BorderSizePixel = 0
-    wsSliderBg.Parent = mainContent
-    Instance.new("UICorner", wsSliderBg).CornerRadius = UDim.new(0, 4)
-
-    local wsVal = (Settings.WalkSpeed - 1) / 199
-    wsVal = math.clamp(wsVal, 0, 1)
-    local wsSliderFill = Instance.new("Frame")
-    wsSliderFill.Size = UDim2.new(wsVal, 0, 1, 0)
-    wsSliderFill.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
-    wsSliderFill.BorderSizePixel = 0
-    wsSliderFill.Parent = wsSliderBg
-    Instance.new("UICorner", wsSliderFill).CornerRadius = UDim.new(0, 4)
-
-    do
-        local dragging = false
-        local function updateWS()
-            local mouse = UserInputService:GetMouseLocation()
-            local relX = mouse.X - wsSliderBg.AbsolutePosition.X
-            local t = math.clamp(relX / wsSliderBg.AbsoluteSize.X, 0, 1)
-            local speed = math.floor(1 + t * 199)
-            wsSliderFill.Size = UDim2.new(t, 0, 1, 0)
-            wsLabel.Text = "WalkSpeed: " .. tostring(speed)
-            Settings.WalkSpeed = speed
-            if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                LocalPlayer.Character.Humanoid.WalkSpeed = speed
-            end
-            SaveSettings()
-        end
-
-        wsSliderBg.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = true
-                setDragging(false)
-                updateWS()
-            end
-        end)
-
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = false
-                setDragging(true)
-            end
-        end)
-
-        UserInputService.InputChanged:Connect(function(input)
-            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                updateWS()
-            end
-        end)
-    end
-
-    ------------------------------------------------------------------
-    -- JUMP POWER SLIDER
-    ------------------------------------------------------------------
-
-    local jpLabel = Instance.new("TextLabel")
-    jpLabel.Size = UDim2.new(0, 130, 0, 20)
-    jpLabel.Position = UDim2.new(0, 20, 0, 194)
-    jpLabel.BackgroundTransparency = 1
-    jpLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    jpLabel.TextScaled = true
-    jpLabel.TextXAlignment = Enum.TextXAlignment.Left
-    jpLabel.Text = "JumpPower: " .. tostring(Settings.JumpPower)
-    jpLabel.Parent = mainContent
-
-    local jpSliderBg = Instance.new("Frame")
-    jpSliderBg.Size = UDim2.new(0, 260, 0, 16)
-    jpSliderBg.Position = UDim2.new(0, 20, 0, 216)
-    jpSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    jpSliderBg.BorderSizePixel = 0
-    jpSliderBg.Parent = mainContent
-    Instance.new("UICorner", jpSliderBg).CornerRadius = UDim.new(0, 4)
-
-    local jpVal = (Settings.JumpPower - 1) / 199
-    jpVal = math.clamp(jpVal, 0, 1)
-    local jpSliderFill = Instance.new("Frame")
-    jpSliderFill.Size = UDim2.new(jpVal, 0, 1, 0)
-    jpSliderFill.BackgroundColor3 = Color3.fromRGB(180, 120, 60)
-    jpSliderFill.BorderSizePixel = 0
-    jpSliderFill.Parent = jpSliderBg
-    Instance.new("UICorner", jpSliderFill).CornerRadius = UDim.new(0, 4)
-
-    do
-        local dragging = false
-        local function updateJP()
-            local mouse = UserInputService:GetMouseLocation()
-            local relX = mouse.X - jpSliderBg.AbsolutePosition.X
-            local t = math.clamp(relX / jpSliderBg.AbsoluteSize.X, 0, 1)
-            local power = math.floor(1 + t * 199)
-            jpSliderFill.Size = UDim2.new(t, 0, 1, 0)
-            jpLabel.Text = "JumpPower: " .. tostring(power)
-            Settings.JumpPower = power
-            if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                LocalPlayer.Character.Humanoid.JumpPower = power
-            end
-            SaveSettings()
-        end
-
-        jpSliderBg.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = true
-                setDragging(false)
-                updateJP()
-            end
-        end)
-
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = false
-                setDragging(true)
-            end
-        end)
-
-        UserInputService.InputChanged:Connect(function(input)
-            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                updateJP()
-            end
-        end)
-    end
-
-    killButton = Instance.new("TextButton")
-    killButton.Size = UDim2.new(0, 260, 0, 30)
-    killButton.Position = UDim2.new(0, 20, 1, -35)
-    killButton.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-    killButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    killButton.TextScaled = true
-    killButton.Text = "KILL SCRIPT"
-    killButton.BorderSizePixel = 0
-    killButton.Parent = mainContent
-
-    Instance.new("UICorner", killButton).CornerRadius = UDim.new(0, 6)
-
-
-    ------------------------------------------------------------------
-    -- DEBUG CONTENT
-    ------------------------------------------------------------------
-
-    debugContent = Instance.new("Frame")
-    debugContent.Size = UDim2.new(1, -10, 1, -90)
-    debugContent.Position = UDim2.new(0, 5, 0, 60)
-    debugContent.BackgroundTransparency = 1
-    debugContent.Name = "DebugContent"
-    debugContent.Visible = false
-    debugContent.Parent = mainFrame
-
-
-    stateLabel = Instance.new("TextLabel")
-    stateLabel.Size = UDim2.new(1, -10, 0, 30)
-    stateLabel.Position = UDim2.new(0, 5, 0, 5)
-    stateLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    stateLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    stateLabel.TextScaled = true
-    stateLabel.BorderSizePixel = 0
-    stateLabel.Text = "Trigger state: " .. TriggerState
-    stateLabel.Parent = debugContent
-
-    Instance.new("UICorner", stateLabel).CornerRadius = UDim.new(0, 6)
-
-
-    local debugInfo = Instance.new("TextLabel")
-    debugInfo.Size = UDim2.new(1, -10, 0, 70)
-    debugInfo.Position = UDim2.new(0, 5, 0, 40)
-    debugInfo.BackgroundTransparency = 1
-    debugInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
-    debugInfo.TextScaled = true
-    debugInfo.TextWrapped = true
-    debugInfo.Text =
-        "DISARMED: V not held\n" ..
-        "ARMED: Ready, V can be held\n" ..
-        "HOLDING: V held, scanning\n" ..
-        "TARGET: enemy in center"
-    debugInfo.Parent = debugContent
-
-
-    ------------------------------------------------------------------
-    -- SETTINGS CONTENT
-    ------------------------------------------------------------------
-
-    settingsContent = Instance.new("Frame")
-    settingsContent.Size = UDim2.new(1, -10, 1, -90)
-    settingsContent.Position = UDim2.new(0, 5, 0, 60)
-    settingsContent.BackgroundTransparency = 1
-    settingsContent.Name = "SettingsContent"
-    settingsContent.Visible = false
-    settingsContent.Parent = mainFrame
+    info.Parent = espContent
 
 
     local pickerFrame = Instance.new("Frame")
     pickerFrame.Size = UDim2.new(0, 210, 0, 160)
-    pickerFrame.Position = UDim2.new(0, 10, 0, 5)
+    pickerFrame.Position = UDim2.new(0, 10, 0, 88)
     pickerFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     pickerFrame.BorderSizePixel = 0
-    pickerFrame.Parent = settingsContent
+    pickerFrame.Parent = espContent
 
     Instance.new("UICorner", pickerFrame).CornerRadius = UDim.new(0, 6)
 
@@ -815,7 +528,7 @@ local function createUI()
     applyFill.TextScaled = true
     applyFill.Text = "Apply to Fill"
     applyFill.BorderSizePixel = 0
-    applyFill.Parent = settingsContent
+    applyFill.Parent = espContent
 
     Instance.new("UICorner", applyFill).CornerRadius = UDim.new(0, 4)
 
@@ -823,7 +536,7 @@ local function createUI()
     applyOutline = applyFill:Clone()
     applyOutline.Text = "Apply to Outline"
     applyOutline.Position = UDim2.new(0, 230, 0, 50)
-    applyOutline.Parent = settingsContent
+    applyOutline.Parent = espContent
 
         ------------------------------------------------------------------
     -- APPLY BUTTON LOGIC
@@ -856,50 +569,310 @@ local function createUI()
 
 
     ------------------------------------------------------------------
+    -- CAM CONTENT
+    ------------------------------------------------------------------
+
+    camContent = Instance.new("Frame")
+    camContent.Size = UDim2.new(1, -10, 1, -90)
+    camContent.Position = UDim2.new(0, 5, 0, 60)
+    camContent.BackgroundTransparency = 1
+    camContent.Name = "CamContent"
+    camContent.Visible = false
+    camContent.Parent = mainFrame
+
+
+    local aaToggle = Instance.new("TextButton")
+    aaToggle.Size = UDim2.new(0, 260, 0, 30)
+    aaToggle.Position = UDim2.new(0, 20, 0, 5)
+    aaToggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    aaToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    aaToggle.TextScaled = true
+    aaToggle.BorderSizePixel = 0
+    aaToggle.Text = AimAssist.Enabled and "Aim Assist: ON" or "Aim Assist: OFF"
+    aaToggle.Parent = camContent
+    Instance.new("UICorner", aaToggle).CornerRadius = UDim.new(0, 6)
+
+    aaToggle.MouseButton1Click:Connect(function()
+        AimAssist.Enabled = not AimAssist.Enabled
+        aaToggle.Text = AimAssist.Enabled and "Aim Assist: ON" or "Aim Assist: OFF"
+        SaveSettings()
+    end)
+
+    ------------------------------------------------------------------
+    -- AIM ASSIST STRENGTH SLIDER
+    ------------------------------------------------------------------
+
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Size = UDim2.new(0, 260, 0, 20)
+    sliderBg.Position = UDim2.new(0, 20, 0, 40)
+    sliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    sliderBg.BorderSizePixel = 0
+    sliderBg.Parent = camContent
+    Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(0, 4)
+
+    local sliderFill = Instance.new("Frame")
+    sliderFill.Size = UDim2.new(AimAssist.Strength, 0, 1, 0)
+    sliderFill.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
+    sliderFill.BorderSizePixel = 0
+    sliderFill.Parent = sliderBg
+    Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 4)
+
+    local sliderLabel = Instance.new("TextLabel")
+    sliderLabel.Size = UDim2.new(1, 0, 1, 0)
+    sliderLabel.BackgroundTransparency = 1
+    sliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    sliderLabel.TextScaled = true
+    sliderLabel.Text = "Strength: " .. math.floor(AimAssist.Strength * 100) .. "%"
+    sliderLabel.Parent = sliderBg
+
+    do
+        local dragging = false
+        local function updateSlider()
+            local mouse = UserInputService:GetMouseLocation()
+            local relX = mouse.X - sliderBg.AbsolutePosition.X
+            local t = math.clamp(relX / sliderBg.AbsoluteSize.X, 0, 1)
+            AimAssist.Strength = t
+            sliderFill.Size = UDim2.new(t, 0, 1, 0)
+            sliderLabel.Text = "Strength: " .. math.floor(t * 100) .. "%"
+            SaveSettings()
+        end
+
+        sliderBg.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                setDragging(false)
+                updateSlider()
+            end
+        end)
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+                setDragging(true)
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                updateSlider()
+            end
+        end)
+    end
+
+
+    ------------------------------------------------------------------
+    -- MISC CONTENT
+    ------------------------------------------------------------------
+
+    miscContent = Instance.new("Frame")
+    miscContent.Size = UDim2.new(1, -10, 1, -90)
+    miscContent.Position = UDim2.new(0, 5, 0, 60)
+    miscContent.BackgroundTransparency = 1
+    miscContent.Name = "MiscContent"
+    miscContent.Visible = false
+    miscContent.Parent = mainFrame
+
+
+    ------------------------------------------------------------------
+    -- WALK SPEED SLIDER
+    ------------------------------------------------------------------
+
+    local wsLabel = Instance.new("TextLabel")
+    wsLabel.Size = UDim2.new(0, 130, 0, 20)
+    wsLabel.Position = UDim2.new(0, 20, 0, 5)
+    wsLabel.BackgroundTransparency = 1
+    wsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    wsLabel.TextScaled = true
+    wsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    wsLabel.Text = "WalkSpeed: " .. tostring(Settings.WalkSpeed)
+    wsLabel.Parent = miscContent
+
+    local wsSliderBg = Instance.new("Frame")
+    wsSliderBg.Size = UDim2.new(0, 260, 0, 16)
+    wsSliderBg.Position = UDim2.new(0, 20, 0, 28)
+    wsSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    wsSliderBg.BorderSizePixel = 0
+    wsSliderBg.Parent = miscContent
+    Instance.new("UICorner", wsSliderBg).CornerRadius = UDim.new(0, 4)
+
+    local wsVal = (Settings.WalkSpeed - 1) / 199
+    wsVal = math.clamp(wsVal, 0, 1)
+    local wsSliderFill = Instance.new("Frame")
+    wsSliderFill.Size = UDim2.new(wsVal, 0, 1, 0)
+    wsSliderFill.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+    wsSliderFill.BorderSizePixel = 0
+    wsSliderFill.Parent = wsSliderBg
+    Instance.new("UICorner", wsSliderFill).CornerRadius = UDim.new(0, 4)
+
+    do
+        local dragging = false
+        local function updateWS()
+            local mouse = UserInputService:GetMouseLocation()
+            local relX = mouse.X - wsSliderBg.AbsolutePosition.X
+            local t = math.clamp(relX / wsSliderBg.AbsoluteSize.X, 0, 1)
+            local speed = math.floor(1 + t * 199)
+            wsSliderFill.Size = UDim2.new(t, 0, 1, 0)
+            wsLabel.Text = "WalkSpeed: " .. tostring(speed)
+            Settings.WalkSpeed = speed
+            if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.WalkSpeed = speed
+            end
+            SaveSettings()
+        end
+
+        wsSliderBg.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                setDragging(false)
+                updateWS()
+            end
+        end)
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+                setDragging(true)
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                updateWS()
+            end
+        end)
+    end
+
+    ------------------------------------------------------------------
+    -- JUMP POWER SLIDER
+    ------------------------------------------------------------------
+
+    local jpLabel = Instance.new("TextLabel")
+    jpLabel.Size = UDim2.new(0, 130, 0, 20)
+    jpLabel.Position = UDim2.new(0, 20, 0, 50)
+    jpLabel.BackgroundTransparency = 1
+    jpLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    jpLabel.TextScaled = true
+    jpLabel.TextXAlignment = Enum.TextXAlignment.Left
+    jpLabel.Text = "JumpPower: " .. tostring(Settings.JumpPower)
+    jpLabel.Parent = miscContent
+
+    local jpSliderBg = Instance.new("Frame")
+    jpSliderBg.Size = UDim2.new(0, 260, 0, 16)
+    jpSliderBg.Position = UDim2.new(0, 20, 0, 73)
+    jpSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    jpSliderBg.BorderSizePixel = 0
+    jpSliderBg.Parent = miscContent
+    Instance.new("UICorner", jpSliderBg).CornerRadius = UDim.new(0, 4)
+
+    local jpVal = (Settings.JumpPower - 1) / 199
+    jpVal = math.clamp(jpVal, 0, 1)
+    local jpSliderFill = Instance.new("Frame")
+    jpSliderFill.Size = UDim2.new(jpVal, 0, 1, 0)
+    jpSliderFill.BackgroundColor3 = Color3.fromRGB(180, 120, 60)
+    jpSliderFill.BorderSizePixel = 0
+    jpSliderFill.Parent = jpSliderBg
+    Instance.new("UICorner", jpSliderFill).CornerRadius = UDim.new(0, 4)
+
+    do
+        local dragging = false
+        local function updateJP()
+            local mouse = UserInputService:GetMouseLocation()
+            local relX = mouse.X - jpSliderBg.AbsolutePosition.X
+            local t = math.clamp(relX / jpSliderBg.AbsoluteSize.X, 0, 1)
+            local power = math.floor(1 + t * 199)
+            jpSliderFill.Size = UDim2.new(t, 0, 1, 0)
+            jpLabel.Text = "JumpPower: " .. tostring(power)
+            Settings.JumpPower = power
+            if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.JumpPower = power
+            end
+            SaveSettings()
+        end
+
+        jpSliderBg.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                setDragging(false)
+                updateJP()
+            end
+        end)
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+                setDragging(true)
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                updateJP()
+            end
+        end)
+    end
+
+    ------------------------------------------------------------------
+    -- KILL SCRIPT BUTTON
+    ------------------------------------------------------------------
+
+    killButton = Instance.new("TextButton")
+    killButton.Size = UDim2.new(0, 260, 0, 30)
+    killButton.Position = UDim2.new(0, 20, 1, -35)
+    killButton.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+    killButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    killButton.TextScaled = true
+    killButton.Text = "KILL SCRIPT"
+    killButton.BorderSizePixel = 0
+    killButton.Parent = miscContent
+
+    Instance.new("UICorner", killButton).CornerRadius = UDim.new(0, 6)
+
+
+    ------------------------------------------------------------------
     -- TAB SWITCHING
     ------------------------------------------------------------------
 
     local function setTab(which)
 
-        mainContent.Visible = (which == "main")
-        debugContent.Visible = (which == "debug")
-        settingsContent.Visible = (which == "settings")
+        espContent.Visible = (which == "esp")
+        camContent.Visible = (which == "cam")
+        miscContent.Visible = (which == "misc")
 
-        mainTab.BackgroundColor3 =
-            (which == "main") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+        espTab.BackgroundColor3 =
+            (which == "esp") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
 
-        mainTab.TextColor3 =
-            (which == "main") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-
-
-        debugTab.BackgroundColor3 =
-            (which == "debug") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
-
-        debugTab.TextColor3 =
-            (which == "debug") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+        espTab.TextColor3 =
+            (which == "esp") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
 
 
-        settingsTab.BackgroundColor3 =
-            (which == "settings") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+        camTab.BackgroundColor3 =
+            (which == "cam") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
 
-        settingsTab.TextColor3 =
-            (which == "settings") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+        camTab.TextColor3 =
+            (which == "cam") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+
+
+        miscTab.BackgroundColor3 =
+            (which == "misc") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+
+        miscTab.TextColor3 =
+            (which == "misc") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
 
     end
 
 
-    mainTab.MouseButton1Click:Connect(function()
-        setTab("main")
+    espTab.MouseButton1Click:Connect(function()
+        setTab("esp")
     end)
 
 
-    debugTab.MouseButton1Click:Connect(function()
-        setTab("debug")
+    camTab.MouseButton1Click:Connect(function()
+        setTab("cam")
     end)
 
 
-    settingsTab.MouseButton1Click:Connect(function()
-        setTab("settings")
+    miscTab.MouseButton1Click:Connect(function()
+        setTab("misc")
     end)
 
 end
@@ -1358,7 +1331,7 @@ table.insert(
             AimAssist.Enabled = not AimAssist.Enabled
             SaveSettings()
 
-            for _, btn in ipairs(mainContent:GetChildren()) do
+            for _, btn in ipairs(camContent:GetChildren()) do
                 if btn:IsA("TextButton") and (btn.Text:find("Aim Assist") or btn.Text:find("Aim Assist")) then
                     btn.Text = AimAssist.Enabled and "Aim Assist: ON" or "Aim Assist: OFF"
                     break
@@ -1538,7 +1511,7 @@ local function DisableAimAssist()
     AimAssist.Enabled = false
     AimAssist.CurrentTarget = nil
 
-    for _, btn in ipairs(mainContent:GetChildren()) do
+    for _, btn in ipairs(camContent:GetChildren()) do
         if btn:IsA("TextButton") and (btn.Text:find("Aim Assist") or btn.Text:find("Aim Assist")) then
             btn.Text = "Aim Assist: OFF"
             break
@@ -1772,9 +1745,7 @@ table.insert(
 
         AimAssist:Update(dt)
 
-        if stateLabel then
-            stateLabel.Text = "Trigger state: " .. TriggerState
-        end
+        -- state label removed
 
     end)
 )
