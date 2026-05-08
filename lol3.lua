@@ -72,22 +72,18 @@ local ESPGroup = ESPTab:AddLeftGroupbox("ESP Settings")
 ESPGroup:AddToggle("ESPEnabled", {
     Text = "ESP Enabled",
     Default = false,
-    Tooltip = "Toggle ESP visibility"
 })
 ESPGroup:AddToggle("ESPArmed", {
     Text = "ESP Armed",
     Default = false,
-    Tooltip = "Arm ESP system (can also be toggled with L key)"
 })
 ESPGroup:AddColorPicker("FillColor", {
     Text = "Fill Color",
     Default = Color3.fromRGB(255, 0, 0),
-    Tooltip = "ESP fill color"
 })
 ESPGroup:AddColorPicker("OutlineColor", {
     Text = "Outline Color",
     Default = Color3.fromRGB(255, 255, 255),
-    Tooltip = "ESP outline color"
 })
 
 local InfoGroup = ESPTab:AddRightGroupbox("Keybinds")
@@ -101,7 +97,6 @@ local CamGroup = CamTab:AddLeftGroupbox("Aim Assist Settings")
 CamGroup:AddToggle("AimAssistEnabled", {
     Text = "Aim Assist Enabled",
     Default = false,
-    Tooltip = "Toggle aim assist (can also be toggled with C key)"
 })
 CamGroup:AddSlider("AimAssistStrength", {
     Text = "Aim Assist Strength",
@@ -109,7 +104,6 @@ CamGroup:AddSlider("AimAssistStrength", {
     Min = 0,
     Max = 1,
     Decimals = 2,
-    Tooltip = "How strong the aim assist pulls toward targets"
 })
 
 -- MISC TAB
@@ -120,7 +114,6 @@ MiscGroup:AddSlider("WalkSpeed", {
     Min = 1,
     Max = 200,
     Decimals = 0,
-    Tooltip = "Player walk speed"
 })
 MiscGroup:AddSlider("JumpPower", {
     Text = "Jump Power",
@@ -128,7 +121,6 @@ MiscGroup:AddSlider("JumpPower", {
     Min = 1,
     Max = 200,
     Decimals = 0,
-    Tooltip = "Player jump power"
 })
 
 local KillGroup = MiscTab:AddRightGroupbox("Script Control")
@@ -142,7 +134,7 @@ ThemeManager:ApplyToTab(ThemeTab)
 SaveManager:SetLibrary(Library)
 SaveManager:BuildConfigSection(ConfigTab)
 
--- Bind UI elements to variables
+-- Bind UI controls
 Library:OnToggle("ESPEnabled", function(value)
     ESP.Enabled = value
 end)
@@ -183,7 +175,7 @@ Library:OnSlider("JumpPower", function(value)
     end
 end)
 
--- Set initial UI values
+-- Set initial values
 Library:SetValue("ESPEnabled", ESP.Enabled)
 Library:SetValue("ESPArmed", ESP.Armed)
 Library:SetValue("FillColor", ESP.FillColor)
