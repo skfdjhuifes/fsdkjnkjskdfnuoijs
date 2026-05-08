@@ -434,6 +434,7 @@ local function createUI()
         sliderBg.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = true
+                setDragging(false)
                 updateSlider()
             end
         end)
@@ -441,6 +442,7 @@ local function createUI()
         UserInputService.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = false
+                setDragging(true)
             end
         end)
 
@@ -1371,24 +1373,9 @@ local function DisableAimAssist()
 end
 
 
-local AAFOV = 200 -- max pixels from screen center to lock on
-local AA_SMOOTHING = 0.15 -- base smoothing factor
-
-local function GetTargetPosition(targetPart)
-
-    if not targetPart or not Camera then
-        return nil
-    end
-
-    local pos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-
-    if not onScreen then
-        return nil
-    end
-
-    return pos
-
-end
+local AAFOV = 300 -- max pixels from screen center to lock on
+local AA_BASE_SPEED = 0.35 -- Matrix Hub-style base pull speed
+local AA_MIN_SPEED = 0.08 -- minimum correction even when close to center
 
 
 local function DoAimAssist()
@@ -1415,7 +1402,7 @@ local function DoAimAssist()
             return
         end
 
-        -- If we have a valid target, lock onto it (camera CFrame method)
+        -- If we have a valid target, lock onto it
         local rootPart = char:FindFirstChild("HumanoidRootPart")
 
         if rootPart then
@@ -1431,19 +1418,25 @@ local function DoAimAssist()
 
                 local distFromCenter = Vector2.new(dx, dy).Magnitude
 
-                -- If target moved out of reasonable range, find new target
+                -- If target moved too far, find new target
                 if distFromCenter > AAFOV * 2 then
                     AimAssist.CurrentTarget = nil
                 else
-                    -- Smoothly move camera toward target using mousemoverel
+                    -- Matrix Hub-style: aggressive pull scaled by strength
                     local strength = AimAssist.Strength
-                    local smooth = AA_SMOOTHING * (strength + 0.3)
+                    local speed = AA_BASE_SPEED + (strength * 0.5)
+                    speed = math.max(AA_MIN_SPEED, speed)
 
-                    -- Scale movement based on distance (closer = slower correction)
-                    local distScale = math.clamp(distFromCenter / AAFOV, 0.3, 1.5)
+                    -- Distance-based scaling: farther = stronger pull
+                    local distFactor = math.clamp(distFromCenter / AAFOV, 0.2, 2.0)
 
-                    local moveX = dx * smooth * distScale
-                    local moveY = dy * smooth * distScale
+                    local moveX = dx * speed * distFactor
+                    local moveY = dy * speed * distFactor
+
+                    -- Clamp max movement per frame to prevent jitter
+                    local maxMove = 60
+                    moveX = math.clamp(moveX, -maxMove, maxMove)
+                    moveY = math.clamp(moveY, -maxMove, maxMove)
 
                     mousemoverel(moveX, moveY)
                     return
@@ -1499,12 +1492,17 @@ local function DoAimAssist()
         local dy = nearestTarget.Y - screenCenter.Y
 
         local strength = AimAssist.Strength
-        local smooth = AA_SMOOTHING * (strength + 0.3)
+        local speed = AA_BASE_SPEED + (strength * 0.5)
+        speed = math.max(AA_MIN_SPEED, speed)
 
-        local distScale = math.clamp(nearestDist / AAFOV, 0.3, 1.5)
+        local distFactor = math.clamp(nearestDist / AAFOV, 0.2, 2.0)
 
-        local moveX = dx * smooth * distScale
-        local moveY = dy * smooth * distScale
+        local moveX = dx * speed * distFactor
+        local moveY = dy * speed * distFactor
+
+        local maxMove = 60
+        moveX = math.clamp(moveX, -maxMove, maxMove)
+        moveY = math.clamp(moveY, -maxMove, maxMove)
 
         mousemoverel(moveX, moveY)
 
