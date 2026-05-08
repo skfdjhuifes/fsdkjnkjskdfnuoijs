@@ -1167,6 +1167,13 @@ table.insert(
         end
 
 
+        if input.KeyCode == Enum.KeyCode.F7 then
+
+            KillScript()
+
+        end
+
+
         if input.KeyCode == Enum.KeyCode.C then
 
             AimAssist.Enabled = not AimAssist.Enabled
