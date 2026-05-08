@@ -56,7 +56,9 @@ local Settings = {
     UISizeX = 360,
     UISizeY = 260,
     AimAssistEnabled = false,
-    AimAssistStrength = 0.5
+    AimAssistStrength = 0.5,
+    WalkSpeed = 16,
+    JumpPower = 50
 }
 
 local function SaveSettings()
@@ -67,6 +69,11 @@ local function SaveSettings()
     Settings.OutlineColor = ESP.OutlineColor
     Settings.AimAssistEnabled = AimAssist.Enabled
     Settings.AimAssistStrength = AimAssist.Strength
+
+    if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        Settings.WalkSpeed = LocalPlayer.Character.Humanoid.WalkSpeed
+        Settings.JumpPower = LocalPlayer.Character.Humanoid.JumpPower
+    end
 
     if mainFrame then
         Settings.UISizeX = mainFrame.Size.X.Offset
@@ -453,6 +460,144 @@ local function createUI()
         end)
     end
 
+    ------------------------------------------------------------------
+    -- WALK SPEED SLIDER
+    ------------------------------------------------------------------
+
+    local wsLabel = Instance.new("TextLabel")
+    wsLabel.Size = UDim2.new(0, 130, 0, 20)
+    wsLabel.Position = UDim2.new(0, 20, 0, 150)
+    wsLabel.BackgroundTransparency = 1
+    wsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    wsLabel.TextScaled = true
+    wsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    wsLabel.Text = "WalkSpeed: " .. tostring(Settings.WalkSpeed)
+    wsLabel.Parent = mainContent
+
+    local wsSliderBg = Instance.new("Frame")
+    wsSliderBg.Size = UDim2.new(0, 260, 0, 16)
+    wsSliderBg.Position = UDim2.new(0, 20, 0, 172)
+    wsSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    wsSliderBg.BorderSizePixel = 0
+    wsSliderBg.Parent = mainContent
+    Instance.new("UICorner", wsSliderBg).CornerRadius = UDim.new(0, 4)
+
+    local wsVal = (Settings.WalkSpeed - 1) / 199
+    wsVal = math.clamp(wsVal, 0, 1)
+    local wsSliderFill = Instance.new("Frame")
+    wsSliderFill.Size = UDim2.new(wsVal, 0, 1, 0)
+    wsSliderFill.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+    wsSliderFill.BorderSizePixel = 0
+    wsSliderFill.Parent = wsSliderBg
+    Instance.new("UICorner", wsSliderFill).CornerRadius = UDim.new(0, 4)
+
+    do
+        local dragging = false
+        local function updateWS()
+            local mouse = UserInputService:GetMouseLocation()
+            local relX = mouse.X - wsSliderBg.AbsolutePosition.X
+            local t = math.clamp(relX / wsSliderBg.AbsoluteSize.X, 0, 1)
+            local speed = math.floor(1 + t * 199)
+            wsSliderFill.Size = UDim2.new(t, 0, 1, 0)
+            wsLabel.Text = "WalkSpeed: " .. tostring(speed)
+            Settings.WalkSpeed = speed
+            if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.WalkSpeed = speed
+            end
+            SaveSettings()
+        end
+
+        wsSliderBg.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                setDragging(false)
+                updateWS()
+            end
+        end)
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+                setDragging(true)
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                updateWS()
+            end
+        end)
+    end
+
+    ------------------------------------------------------------------
+    -- JUMP POWER SLIDER
+    ------------------------------------------------------------------
+
+    local jpLabel = Instance.new("TextLabel")
+    jpLabel.Size = UDim2.new(0, 130, 0, 20)
+    jpLabel.Position = UDim2.new(0, 20, 0, 194)
+    jpLabel.BackgroundTransparency = 1
+    jpLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    jpLabel.TextScaled = true
+    jpLabel.TextXAlignment = Enum.TextXAlignment.Left
+    jpLabel.Text = "JumpPower: " .. tostring(Settings.JumpPower)
+    jpLabel.Parent = mainContent
+
+    local jpSliderBg = Instance.new("Frame")
+    jpSliderBg.Size = UDim2.new(0, 260, 0, 16)
+    jpSliderBg.Position = UDim2.new(0, 20, 0, 216)
+    jpSliderBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    jpSliderBg.BorderSizePixel = 0
+    jpSliderBg.Parent = mainContent
+    Instance.new("UICorner", jpSliderBg).CornerRadius = UDim.new(0, 4)
+
+    local jpVal = (Settings.JumpPower - 1) / 199
+    jpVal = math.clamp(jpVal, 0, 1)
+    local jpSliderFill = Instance.new("Frame")
+    jpSliderFill.Size = UDim2.new(jpVal, 0, 1, 0)
+    jpSliderFill.BackgroundColor3 = Color3.fromRGB(180, 120, 60)
+    jpSliderFill.BorderSizePixel = 0
+    jpSliderFill.Parent = jpSliderBg
+    Instance.new("UICorner", jpSliderFill).CornerRadius = UDim.new(0, 4)
+
+    do
+        local dragging = false
+        local function updateJP()
+            local mouse = UserInputService:GetMouseLocation()
+            local relX = mouse.X - jpSliderBg.AbsolutePosition.X
+            local t = math.clamp(relX / jpSliderBg.AbsoluteSize.X, 0, 1)
+            local power = math.floor(1 + t * 199)
+            jpSliderFill.Size = UDim2.new(t, 0, 1, 0)
+            jpLabel.Text = "JumpPower: " .. tostring(power)
+            Settings.JumpPower = power
+            if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.JumpPower = power
+            end
+            SaveSettings()
+        end
+
+        jpSliderBg.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                setDragging(false)
+                updateJP()
+            end
+        end)
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+                setDragging(true)
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                updateJP()
+            end
+        end)
+    end
+
     killButton = Instance.new("TextButton")
     killButton.Size = UDim2.new(0, 260, 0, 30)
     killButton.Position = UDim2.new(0, 20, 1, -35)
@@ -761,6 +906,38 @@ end
 
 
 createUI()
+
+
+------------------------------------------------------------------
+-- CHARACTER RESPAWN HANDLER
+------------------------------------------------------------------
+
+local function ApplySpeedSettings()
+
+    if not LocalPlayer then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then return end
+
+    humanoid.WalkSpeed = Settings.WalkSpeed
+    humanoid.JumpPower = Settings.JumpPower
+
+end
+
+local function OnCharacterAdded(newChar)
+
+    local humanoid = newChar:WaitForChild("Humanoid")
+
+    ApplySpeedSettings()
+
+end
+
+LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
+
+-- Initial application
+ApplySpeedSettings()
 
 
 local function setDragging(state)
@@ -1376,6 +1553,42 @@ end
 local AAFOV = 300 -- max pixels from screen center to lock on
 
 
+function AimAssist:IsTargetValid(character)
+
+    if not character then
+        return false
+    end
+
+    local humanoid = character:FindFirstChild("Humanoid")
+
+    if not humanoid then
+        return false
+    end
+
+    if humanoid.Health <= 0 then
+        return false
+    end
+
+    if humanoid:GetState() == Enum.HumanoidStateType.Dead then
+        return false
+    end
+
+    -- Check for common knocked/ragdoll states
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+
+    if rootPart then
+        -- If root part velocity is near zero but character is on floor and not moving = likely ragdolled/knocked
+        local bodyVelocity = rootPart.Velocity
+        if bodyVelocity and bodyVelocity.Magnitude < 0.1 and humanoid:GetState() == Enum.HumanoidStateType.Ragdoll then
+            return false
+        end
+    end
+
+    return true
+
+end
+
+
 local function GetTargetHeadCFrame(targetChar)
 
     if not targetChar then
@@ -1419,8 +1632,8 @@ function AimAssist:Update(deltaTime)
 
         local char = self.CurrentTarget.Character
 
-        if IsCharacterKnocked(char) then
-            DisableAimAssist()
+        if self:IsTargetValid(char) == false then
+            self.CurrentTarget = nil
             return
         end
 
