@@ -35,7 +35,8 @@ local ESP = {
 
 local AimAssist = {
     Enabled = false,
-    Strength = 0.5
+    Strength = 0.5,
+    CurrentTarget = nil
 }
 
 local TriggerHeld = false
