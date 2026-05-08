@@ -417,19 +417,40 @@ end
 
 local function KillScript()
 
+    if not Running then return end
     Running = false
 
+    -- Disable aim assist and triggerbot
+    AimAssist.Enabled = false
+    AimAssist.CurrentTarget = nil
+    TriggerHeld = false
+    TriggerState = "DISARMED"
+
+    -- Clear ESP
     ESP:ClearAll()
 
-    if Window then
-        Window:Destroy()
-    end
-
-
+    -- Disconnect all custom connections
     for _, conn in ipairs(Connections) do
         pcall(function()
             conn:Disconnect()
         end)
+    end
+
+    -- Destroy Rayfield window and its ScreenGui
+    if Window then
+        pcall(function()
+            Window:Destroy()
+        end)
+        Window = nil
+    end
+
+    -- Destroy Rayfield's ScreenGui if it still exists
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then
+        local rayfieldGui = pg:FindFirstChild("Rayfield")
+        if rayfieldGui then
+            rayfieldGui:Destroy()
+        end
     end
 
 end
@@ -463,12 +484,10 @@ table.insert(
 
         if input.KeyCode == Enum.KeyCode.C then
 
+            if not Running then return end
+
             AimAssist.Enabled = not AimAssist.Enabled
             SaveSettings()
-
-            if aaToggle then
-                aaToggle:SetValue(AimAssist.Enabled)
-            end
 
         end
 
@@ -642,10 +661,6 @@ local function DisableAimAssist()
 
     AimAssist.Enabled = false
     AimAssist.CurrentTarget = nil
-
-    if aaToggle then
-        aaToggle:SetValue(false)
-    end
     SaveSettings()
 
 end
