@@ -1,9 +1,14 @@
--- dljdsafd.lua
--- ESP + Triggerbot + Aim Assist with Linoria UI
+--[[  
+ESP + Triggerbot (L toggle, V hold)  
+L = Arm/Disarm ESP  
+Hold V = Triggerbot  
+C = Toggle Aim Assist
+F7 = Kill Script
+]]  
 
-------------------------------------------------------------------
--- SERVICES
-------------------------------------------------------------------
+------------------------------------------------------------------  
+-- SERVICES  
+------------------------------------------------------------------  
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -12,9 +17,9 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
-------------------------------------------------------------------
--- STATE
-------------------------------------------------------------------
+------------------------------------------------------------------  
+-- STATE  
+------------------------------------------------------------------  
 
 local Running = true
 local Connections = {}
@@ -33,108 +38,18 @@ local AimAssist = {
     CurrentTarget = nil
 }
 
-local TriggerHeld = false
-local TriggerState = "DISARMED"
-local clicked = false
-
-------------------------------------------------------------------
--- SETTINGS SYSTEM
-------------------------------------------------------------------
-
 local Settings = {
-    ESPEnabled = false,
-    ESPArmed = false,
-    FillColor = Color3.fromRGB(255, 0, 0),
-    OutlineColor = Color3.fromRGB(255, 255, 255),
-    AimAssistEnabled = false,
-    AimAssistStrength = 0.5,
     WalkSpeed = 16,
     JumpPower = 50
 }
 
-local function SaveSettings()
-    Settings.ESPEnabled = ESP.Enabled
-    Settings.ESPArmed = ESP.Armed
-    Settings.FillColor = ESP.FillColor
-    Settings.OutlineColor = ESP.OutlineColor
-    Settings.AimAssistEnabled = AimAssist.Enabled
-    Settings.AimAssistStrength = AimAssist.Strength
+local TriggerHeld = false
+local TriggerState = "DISARMED"
+local clicked = false
 
-    if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        Settings.WalkSpeed = LocalPlayer.Character.Humanoid.WalkSpeed
-        Settings.JumpPower = LocalPlayer.Character.Humanoid.JumpPower
-    end
-end
-
-local function LoadSettings()
-    ESP.Enabled = Settings.ESPEnabled
-    ESP.Armed = Settings.ESPArmed
-    ESP.FillColor = Settings.FillColor
-    ESP.OutlineColor = Settings.OutlineColor
-    AimAssist.Enabled = Settings.AimAssistEnabled
-    AimAssist.Strength = Settings.AimAssistStrength
-end
-
-------------------------------------------------------------------
--- COLOR HELPERS (kept for logic, not used by UI directly)
-------------------------------------------------------------------
-
-local function HSVToRGB(h, s, v)
-    local c = v * s
-    local x = c * (1 - math.abs((h / 60) % 2 - 1))
-    local m = v - c
-
-    local r, g, b = 0, 0, 0
-
-    if h < 60 then
-        r, g, b = c, x, 0
-    elseif h < 120 then
-        r, g, b = x, c, 0
-    elseif h < 180 then
-        r, g, b = 0, c, x
-    elseif h < 240 then
-        r, g, b = 0, x, c
-    elseif h < 300 then
-        r, g, b = x, 0, c
-    else
-        r, g, b = c, 0, x
-    end
-
-    return Color3.new(r + m, g + m, b + m)
-end
-
-local function RGBToHSV(color)
-    local r = color.R
-    local g = color.G
-    local b = color.B
-
-    local max = math.max(r, g, b)
-    local min = math.min(r, g, b)
-
-    local d = max - min
-    local h = 0
-
-    if d == 0 then
-        h = 0
-    elseif max == r then
-        h = 60 * (((g - b) / d) % 6)
-    elseif max == g then
-        h = 60 * (((b - r) / d) + 2)
-    elseif max == b then
-        h = 60 * (((r - g) / d) + 4)
-    end
-
-    local s = (max == 0) and 0 or (d / max)
-    local v = max
-
-    return h, s, v
-end
-
-------------------------------------------------------------------
--- LINORIA UI
-------------------------------------------------------------------
-
-LoadSettings()
+------------------------------------------------------------------  
+-- LINORIA UI  
+------------------------------------------------------------------  
 
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
@@ -146,179 +61,163 @@ local Window = Library:CreateWindow({
     AutoShow = true,
 })
 
--- Tabs
 local ESPTab = Window:AddTab("ESP")
 local CamTab = Window:AddTab("Cam")
 local MiscTab = Window:AddTab("Misc")
-
--- Sections
-local ESPSection = ESPTab:AddSection("ESP Settings")
-local CamSection = CamTab:AddSection("Aim Assist Settings")
-local MiscSection = MiscTab:AddSection("Misc Settings")
-
--- ESP Tab Content
-ESPTab:AddLabel("L = Arm/Disarm | Hold V = Trigger | F7 = Kill Script")
-
-ESPTab:AddToggle("ESPEnabledToggle", {
-    Text = "ESP Enabled",
-    Default = ESP.Enabled,
-    Callback = function(value)
-        ESP.Enabled = value
-        if not value then
-            ESP:ClearAll()
-        end
-        SaveSettings()
-    end
-})
-
-ESPTab:AddToggle("ESPArmedToggle", {
-    Text = "ESP Armed (L key also toggles)",
-    Default = ESP.Armed,
-    Callback = function(value)
-        ESP.Armed = value
-        SaveSettings()
-    end
-})
-
-ESPTab:AddColorPicker("ESPFillColorPicker", {
-    Text = "ESP Fill Color",
-    Default = ESP.FillColor,
-    Callback = function(color)
-        ESP.FillColor = color
-        for _, highlight in pairs(ESP.Pixels) do
-            highlight.FillColor = ESP.FillColor
-        end
-        SaveSettings()
-    end
-})
-
-ESPTab:AddColorPicker("ESPOutlineColorPicker", {
-    Text = "ESP Outline Color",
-    Default = ESP.OutlineColor,
-    Callback = function(color)
-        ESP.OutlineColor = color
-        for _, highlight in pairs(ESP.Pixels) do
-            highlight.OutlineColor = ESP.OutlineColor
-        end
-        SaveSettings()
-    end
-})
-
--- Cam Tab Content
-CamSection:AddToggle("AimAssistToggle", {
-    Text = "Aim Assist Enabled (C key also toggles)",
-    Default = AimAssist.Enabled,
-    Callback = function(value)
-        AimAssist.Enabled = value
-        SaveSettings()
-    end
-})
-
-CamSection:AddSlider("AimAssistStrengthSlider", {
-    Text = "Aim Assist Strength",
-    Default = math.floor(AimAssist.Strength * 100),
-    Min = 0,
-    Max = 100,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(value)
-        AimAssist.Strength = value / 100
-        SaveSettings()
-    end
-})
-
--- Misc Tab Content
-MiscSection:AddSlider("WalkSpeedSlider", {
-    Text = "WalkSpeed",
-    Default = Settings.WalkSpeed,
-    Min = 1,
-    Max = 200,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(value)
-        Settings.WalkSpeed = value
-        if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.WalkSpeed = value
-        end
-        SaveSettings()
-    end
-})
-
-MiscSection:AddSlider("JumpPowerSlider", {
-    Text = "JumpPower",
-    Default = Settings.JumpPower,
-    Min = 1,
-    Max = 200,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(value)
-        Settings.JumpPower = value
-        if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.JumpPower = value
-        end
-        SaveSettings()
-    end
-})
-
-MiscSection:AddButton("KillScriptButton", {
-    Text = "KILL SCRIPT (F7)",
-    Func = function()
-        Running = false
-        ESP:ClearAll()
-        if Library and Library.Unload then
-            Library:Unload()
-        end
-        for _, conn in ipairs(Connections) do
-            pcall(function()
-                conn:Disconnect()
-            end)
-        end
-    end
-})
-
--- Theme / Config Tabs
 local ThemeTab = Window:AddTab("Theme")
 local ConfigTab = Window:AddTab("Config")
 
-ThemeManager:SetLibrary(Library)
-SaveManager:SetLibrary(Library)
+-- ESP TAB
+local ESPGroup = ESPTab:AddLeftGroupbox("ESP Settings")
+ESPGroup:AddToggle("ESPEnabled", {
+    Text = "ESP Enabled",
+    Default = false,
+    Tooltip = "Toggle ESP visibility"
+})
+ESPGroup:AddToggle("ESPArmed", {
+    Text = "ESP Armed",
+    Default = false,
+    Tooltip = "Arm ESP system (can also be toggled with L key)"
+})
+ESPGroup:AddColorPicker("FillColor", {
+    Text = "Fill Color",
+    Default = Color3.fromRGB(255, 0, 0),
+    Tooltip = "ESP fill color"
+})
+ESPGroup:AddColorPicker("OutlineColor", {
+    Text = "Outline Color",
+    Default = Color3.fromRGB(255, 255, 255),
+    Tooltip = "ESP outline color"
+})
 
+local InfoGroup = ESPTab:AddRightGroupbox("Keybinds")
+InfoGroup:AddLabel("L - Toggle ESP Armed")
+InfoGroup:AddLabel("V (Hold) - Triggerbot")
+InfoGroup:AddLabel("C - Toggle Aim Assist")
+InfoGroup:AddLabel("F7 - Kill Script")
+
+-- CAM TAB
+local CamGroup = CamTab:AddLeftGroupbox("Aim Assist Settings")
+CamGroup:AddToggle("AimAssistEnabled", {
+    Text = "Aim Assist Enabled",
+    Default = false,
+    Tooltip = "Toggle aim assist (can also be toggled with C key)"
+})
+CamGroup:AddSlider("AimAssistStrength", {
+    Text = "Aim Assist Strength",
+    Default = 0.5,
+    Min = 0,
+    Max = 1,
+    Decimals = 2,
+    Tooltip = "How strong the aim assist pulls toward targets"
+})
+
+-- MISC TAB
+local MiscGroup = MiscTab:AddLeftGroupbox("Movement Settings")
+MiscGroup:AddSlider("WalkSpeed", {
+    Text = "Walk Speed",
+    Default = 16,
+    Min = 1,
+    Max = 200,
+    Decimals = 0,
+    Tooltip = "Player walk speed"
+})
+MiscGroup:AddSlider("JumpPower", {
+    Text = "Jump Power",
+    Default = 50,
+    Min = 1,
+    Max = 200,
+    Decimals = 0,
+    Tooltip = "Player jump power"
+})
+
+local KillGroup = MiscTab:AddRightGroupbox("Script Control")
+KillGroup:AddButton("Kill Script", function()
+    KillScript()
+end)
+
+-- THEME & CONFIG
+ThemeManager:SetLibrary(Library)
 ThemeManager:ApplyToTab(ThemeTab)
+SaveManager:SetLibrary(Library)
 SaveManager:BuildConfigSection(ConfigTab)
 
-------------------------------------------------------------------
--- CHARACTER RESPAWN HANDLER
-------------------------------------------------------------------
+-- Bind UI elements to variables
+Library:OnToggle("ESPEnabled", function(value)
+    ESP.Enabled = value
+end)
+Library:OnToggle("ESPArmed", function(value)
+    ESP.Armed = value
+end)
+Library:OnColorPicker("FillColor", function(value)
+    ESP.FillColor = value
+    for _, highlight in pairs(ESP.Pixels) do
+        highlight.FillColor = ESP.FillColor
+    end
+end)
+Library:OnColorPicker("OutlineColor", function(value)
+    ESP.OutlineColor = value
+    for _, highlight in pairs(ESP.Pixels) do
+        highlight.OutlineColor = ESP.OutlineColor
+    end
+end)
+Library:OnToggle("AimAssistEnabled", function(value)
+    AimAssist.Enabled = value
+    if not value then
+        AimAssist.CurrentTarget = nil
+    end
+end)
+Library:OnSlider("AimAssistStrength", function(value)
+    AimAssist.Strength = value
+end)
+Library:OnSlider("WalkSpeed", function(value)
+    Settings.WalkSpeed = value
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = Settings.WalkSpeed
+    end
+end)
+Library:OnSlider("JumpPower", function(value)
+    Settings.JumpPower = value
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.JumpPower = Settings.JumpPower
+    end
+end)
+
+-- Set initial UI values
+Library:SetValue("ESPEnabled", ESP.Enabled)
+Library:SetValue("ESPArmed", ESP.Armed)
+Library:SetValue("FillColor", ESP.FillColor)
+Library:SetValue("OutlineColor", ESP.OutlineColor)
+Library:SetValue("AimAssistEnabled", AimAssist.Enabled)
+Library:SetValue("AimAssistStrength", AimAssist.Strength)
+Library:SetValue("WalkSpeed", Settings.WalkSpeed)
+Library:SetValue("JumpPower", Settings.JumpPower)
+
+------------------------------------------------------------------  
+-- CHARACTER RESPAWN  
+------------------------------------------------------------------  
 
 local function ApplySpeedSettings()
-    if not LocalPlayer then return end
     local char = LocalPlayer.Character
     if not char then return end
-
-    local humanoid = char:FindFirstChild("Humanoid")
-    if not humanoid then return end
-
-    humanoid.WalkSpeed = Settings.WalkSpeed
-    humanoid.JumpPower = Settings.JumpPower
+    local hum = char:FindFirstChild("Humanoid")
+    if not hum then return end
+    hum.WalkSpeed = Settings.WalkSpeed
+    hum.JumpPower = Settings.JumpPower
 end
 
-local function OnCharacterAdded(newChar)
-    local humanoid = newChar:WaitForChild("Humanoid")
+LocalPlayer.CharacterAdded:Connect(function()
     ApplySpeedSettings()
-end
+end)
 
-LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
 ApplySpeedSettings()
 
-------------------------------------------------------------------
--- ESP FUNCTIONS
-------------------------------------------------------------------
+------------------------------------------------------------------  
+-- ESP FUNCTIONS  
+------------------------------------------------------------------  
 
 function ESP:CreatePixel(character)
-    if not character or self.Pixels[character] then
-        return
-    end
-
+    if not character or self.Pixels[character] then return end
     local highlight = Instance.new("Highlight")
     highlight.Name = "ESP_Highlight"
     highlight.FillColor = self.FillColor
@@ -328,7 +227,6 @@ function ESP:CreatePixel(character)
     highlight.Adornee = character
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Parent = character
-
     self.Pixels[character] = highlight
 end
 
@@ -340,17 +238,13 @@ function ESP:RemovePixel(character)
 end
 
 function ESP:ClearAll()
-    for _, h in pairs(self.Pixels) do
-        h:Destroy()
-    end
+    for _, h in pairs(self.Pixels) do h:Destroy() end
     self.Pixels = {}
 end
 
 function ESP:Update()
     if not self.Enabled or not self.Armed then
-        if next(self.Pixels) ~= nil then
-            self:ClearAll()
-        end
+        if next(self.Pixels) then self:ClearAll() end
         return
     end
 
@@ -358,9 +252,7 @@ function ESP:Update()
         if plr ~= LocalPlayer then
             local char = plr.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
-                if not self.Pixels[char] then
-                    self:CreatePixel(char)
-                end
+                if not self.Pixels[char] then self:CreatePixel(char) end
             else
                 self:RemovePixel(char)
             end
@@ -368,9 +260,9 @@ function ESP:Update()
     end
 end
 
-------------------------------------------------------------------
--- KILL SCRIPT (F7 HANDLER)
-------------------------------------------------------------------
+------------------------------------------------------------------  
+-- KILL SCRIPT  
+------------------------------------------------------------------  
 
 local function KillScript()
     if not Running then return end
@@ -380,135 +272,98 @@ local function KillScript()
     AimAssist.CurrentTarget = nil
     TriggerHeld = false
     TriggerState = "DISARMED"
+    clicked = false
 
     ESP:ClearAll()
 
     for _, conn in ipairs(Connections) do
-        pcall(function()
-            conn:Disconnect()
-        end)
+        pcall(function() conn:Disconnect() end)
     end
+    Connections = {}
 
+    if Window and Window.Destroy then
+        pcall(function() Window:Destroy() end)
+    end
+    
     if Library and Library.Unload then
-        pcall(function()
-            Library:Unload()
-        end)
+        pcall(function() Library:Unload() end)
     end
 end
 
-------------------------------------------------------------------
--- INPUT: L (ARM ESP), V (TRIGGERBOT), C (AIM ASSIST), F7 (KILL)
-------------------------------------------------------------------
+------------------------------------------------------------------  
+-- INPUT  
+------------------------------------------------------------------  
 
-table.insert(
-    Connections,
-    UserInputService.InputBegan:Connect(function(input, gp)
-        if input.KeyCode == Enum.KeyCode.F7 then
-            KillScript()
-            return
+table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp)
+    if input.KeyCode == Enum.KeyCode.F7 then 
+        KillScript() 
+        return 
+    end
+    if gp then return end
+
+    if input.KeyCode == Enum.KeyCode.L then 
+        ESP.Armed = not ESP.Armed
+        Library:SetValue("ESPArmed", ESP.Armed)
+    end
+    if input.KeyCode == Enum.KeyCode.C then 
+        AimAssist.Enabled = not AimAssist.Enabled
+        Library:SetValue("AimAssistEnabled", AimAssist.Enabled)
+        if not AimAssist.Enabled then
+            AimAssist.CurrentTarget = nil
         end
+    end
+    if input.KeyCode == Enum.KeyCode.V then 
+        TriggerHeld = true 
+        TriggerState = "HOLDING" 
+    end
+end))
 
-        if gp then return end
+table.insert(Connections, UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.V then
+        TriggerHeld = false
+        if TriggerState ~= "DISARMED" then TriggerState = "ARMED" end
+        clicked = false
+    end
+end))
 
-        if input.KeyCode == Enum.KeyCode.L then
-            ESP.Armed = not ESP.Armed
-            SaveSettings()
-        end
-
-        if input.KeyCode == Enum.KeyCode.C then
-            if not Running then return end
-            AimAssist.Enabled = not AimAssist.Enabled
-            SaveSettings()
-        end
-
-        if input.KeyCode == Enum.KeyCode.V then
-            TriggerHeld = true
-            TriggerState = "HOLDING"
-        end
-    end)
-)
-
-table.insert(
-    Connections,
-    UserInputService.InputEnded:Connect(function(input)
-        if input.KeyCode == Enum.KeyCode.V then
-            TriggerHeld = false
-            if TriggerState ~= "DISARMED" then
-                TriggerState = "ARMED"
-            end
-            clicked = false
-        end
-    end)
-)
-
-------------------------------------------------------------------
--- TRIGGERBOT
-------------------------------------------------------------------
+------------------------------------------------------------------  
+-- TRIGGERBOT  
+------------------------------------------------------------------  
 
 local function DetectCenterTarget()
     if not TriggerHeld then
-        if TriggerState == "DISARMED" then
-            TriggerState = "ARMED"
-        end
+        if TriggerState == "DISARMED" then TriggerState = "ARMED" end
         clicked = false
         return
     end
 
     TriggerState = "HOLDING"
 
-    if not Camera then
-        Camera = workspace.CurrentCamera
-        if not Camera then return end
-    end
+    if not Camera then Camera = workspace.CurrentCamera if not Camera then return end end
 
     local mousePos = UserInputService:GetMouseLocation()
-
     local offsets = {
-        Vector2.new(0, 0),
-        Vector2.new(1, 0),
-        Vector2.new(-1, 0),
-        Vector2.new(0, 1),
-        Vector2.new(0, -1),
-        Vector2.new(2, 0),
-        Vector2.new(-2, 0),
-        Vector2.new(0, 2),
-        Vector2.new(0, -2)
+        Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(-1, 0),
+        Vector2.new(0, 1), Vector2.new(0, -1),
+        Vector2.new(2, 0), Vector2.new(-2, 0),
+        Vector2.new(0, 2), Vector2.new(0, -2)
     }
-
-    local result
 
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Blacklist
     params.FilterDescendantsInstances = { LocalPlayer.Character }
 
+    local result
     for _, offset in ipairs(offsets) do
-        local ray =
-            Camera:ViewportPointToRay(
-                mousePos.X + offset.X,
-                mousePos.Y + offset.Y
-            )
-
-        local origin = ray.Origin
-
-        result =
-            workspace:Raycast(
-                origin,
-                ray.Direction * 1000,
-                params
-            )
-
-        if result then
-            break
-        end
+        local ray = Camera:ViewportPointToRay(mousePos.X + offset.X, mousePos.Y + offset.Y)
+        result = workspace:Raycast(ray.Origin, ray.Direction * 1000, params)
+        if result then break end
     end
 
     if result and result.Instance then
-        local part = result.Instance
-        local model = part:FindFirstAncestorOfClass("Model")
-
+        local model = result.Instance:FindFirstAncestorOfClass("Model")
         if model then
             local playerHit = Players:GetPlayerFromCharacter(model)
-
             if playerHit and playerHit ~= LocalPlayer then
                 TriggerState = "TARGET"
                 mouse1press()
@@ -522,150 +377,95 @@ local function DetectCenterTarget()
     clicked = false
 end
 
-------------------------------------------------------------------
--- AIM ASSIST
-------------------------------------------------------------------
+------------------------------------------------------------------  
+-- AIM ASSIST  
+------------------------------------------------------------------  
 
 local function IsCharacterKnocked(char)
-    if not char then
-        return true
-    end
-
-    local humanoid = char:FindFirstChild("Humanoid")
-
-    if not humanoid then
-        return true
-    end
-
-    if humanoid.Health <= 0 then
-        return true
-    end
-
-    if humanoid:GetState() == Enum.HumanoidStateType.Dead then
-        return true
-    end
-
+    if not char then return true end
+    local hum = char:FindFirstChild("Humanoid")
+    if not hum then return true end
+    if hum.Health <= 0 then return true end
+    if hum:GetState() == Enum.HumanoidStateType.Dead then return true end
     return false
 end
 
-local AAFOV = 300 -- max pixels from screen center to lock on
+local AAFOV = 300
 
 function AimAssist:IsTargetValid(character)
-    if not character then
-        return false
-    end
-
-    local humanoid = character:FindFirstChild("Humanoid")
-
-    if not humanoid then
-        return false
-    end
-
-    if humanoid.Health <= 0 then
-        return false
-    end
-
-    if humanoid:GetState() == Enum.HumanoidStateType.Dead then
-        return false
-    end
-
+    if not character then return false end
+    local hum = character:FindFirstChild("Humanoid")
+    if not hum then return false end
+    if hum.Health <= 0 then return false end
+    if hum:GetState() == Enum.HumanoidStateType.Dead then return false end
     return true
 end
 
-local function GetTargetHeadCFrame(targetChar)
-    if not targetChar then
-        return nil
-    end
-
-    local head = targetChar:FindFirstChild("Head")
-
-    if head then
-        return head.Position
-    end
-
-    local rootPart = targetChar:FindFirstChild("HumanoidRootPart")
-
-    if rootPart then
-        return rootPart.Position + Vector3.new(0, 1.5, 0)
-    end
-
+local function GetTargetHeadCFrame(char)
+    if not char then return nil end
+    local head = char:FindFirstChild("Head")
+    if head then return head.Position end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if root then return root.Position + Vector3.new(0, 1.5, 0) end
     return nil
 end
 
-function AimAssist:Update(deltaTime)
-    if not self.Enabled then
-        if self.CurrentTarget then
-            self.CurrentTarget = nil
-        end
-        return
+function AimAssist:Update(dt)
+    if not self.Enabled then 
+        self.CurrentTarget = nil 
+        return 
     end
-
-    if not Camera then
-        Camera = workspace.CurrentCamera
-        if not Camera then return end
+    if not Camera then 
+        Camera = workspace.CurrentCamera 
+        if not Camera then 
+            return 
+        end 
     end
 
     if self.CurrentTarget then
         local char = self.CurrentTarget.Character
-
-        if self:IsTargetValid(char) == false then
-            self.CurrentTarget = nil
-            return
+        if not self:IsTargetValid(char) then 
+            self.CurrentTarget = nil 
+            return 
         end
 
         local targetPos = GetTargetHeadCFrame(char)
-
         if targetPos then
             local screenPos = Camera:WorldToViewportPoint(targetPos)
-            local screenCenter = Camera.ViewportSize / 2
-            local dx = screenPos.X - screenCenter.X
-            local dy = screenPos.Y - screenCenter.Y
-            local distFromCenter = Vector2.new(dx, dy).Magnitude
+            local center = Camera.ViewportSize / 2
+            local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
 
-            if distFromCenter > AAFOV * 2 then
+            if dist > AAFOV * 2 then
                 self.CurrentTarget = nil
             else
-                local smoothness = self.Strength
-                local currentCFrame = Camera.CFrame
-                local cameraPos = currentCFrame.Position
-                local targetCFrame = CFrame.lookAt(cameraPos, targetPos)
-
-                local factor = 1 - smoothness
-                local dtFactor = 1 - (1 - factor) ^ (deltaTime * 60)
-                dtFactor = math.clamp(dtFactor, 0, 1)
-
-                local newCFrame = currentCFrame:Lerp(targetCFrame, dtFactor)
-
-                Camera.CFrame = newCFrame
+                local smooth = self.Strength
+                local current = Camera.CFrame
+                local camPos = current.Position
+                local target = CFrame.lookAt(camPos, targetPos)
+                local factor = 1 - smooth
+                local dtFactor = 1 - (1 - factor) ^ (dt * 60)
+                Camera.CFrame = current:Lerp(target, dtFactor)
                 return
             end
         end
     end
 
-    local screenCenter = Camera.ViewportSize / 2
-    local nearestTargetPlayer = nil
-    local nearestDist = math.huge
-    local nearestTargetPos = nil
+    local center = Camera.ViewportSize / 2
+    local nearest, nearestDist, nearestPos = nil, math.huge, nil
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then
             local char = plr.Character
-
             if char and not IsCharacterKnocked(char) then
-                local targetPos = GetTargetHeadCFrame(char)
-
-                if targetPos then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
-
+                local pos = GetTargetHeadCFrame(char)
+                if pos then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(pos)
                     if onScreen then
-                        local dx = screenPos.X - screenCenter.X
-                        local dy = screenPos.Y - screenCenter.Y
-                        local dist = Vector2.new(dx, dy).Magnitude
-
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
                         if dist < nearestDist and dist <= AAFOV then
                             nearestDist = dist
-                            nearestTargetPos = targetPos
-                            nearestTargetPlayer = plr
+                            nearest = plr
+                            nearestPos = pos
                         end
                     end
                 end
@@ -673,36 +473,26 @@ function AimAssist:Update(deltaTime)
         end
     end
 
-    self.CurrentTarget = nearestTargetPlayer
+    self.CurrentTarget = nearest
 
-    if nearestTargetPos then
-        local smoothness = self.Strength
-        local currentCFrame = Camera.CFrame
-        local cameraPos = currentCFrame.Position
-        local targetCFrame = CFrame.lookAt(cameraPos, nearestTargetPos)
-
-        local factor = 1 - smoothness
-        local dtFactor = 1 - (1 - factor) ^ (deltaTime * 60)
-        dtFactor = math.clamp(dtFactor, 0, 1)
-
-        local newCFrame = currentCFrame:Lerp(targetCFrame, dtFactor)
-        Camera.CFrame = newCFrame
+    if nearestPos then
+        local smooth = self.Strength
+        local current = Camera.CFrame
+        local camPos = current.Position
+        local target = CFrame.lookAt(camPos, nearestPos)
+        local factor = 1 - smooth
+        local dtFactor = 1 - (1 - factor) ^ (dt * 60)
+        Camera.CFrame = current:Lerp(target, dtFactor)
     end
 end
 
-------------------------------------------------------------------
--- MAIN LOOP
-------------------------------------------------------------------
+------------------------------------------------------------------  
+-- MAIN LOOP  
+------------------------------------------------------------------  
 
-table.insert(
-    Connections,
-    RunService.RenderStepped:Connect(function(dt)
-        if not Running then
-            return
-        end
-
-        ESP:Update()
-        DetectCenterTarget()
-        AimAssist:Update(dt)
-    end)
-)
+table.insert(Connections, RunService.RenderStepped:Connect(function(dt)
+    if not Running then return end
+    ESP:Update()
+    DetectCenterTarget()
+    AimAssist:Update(dt)
+end))
