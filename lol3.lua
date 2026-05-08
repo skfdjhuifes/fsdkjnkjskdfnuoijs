@@ -48,6 +48,36 @@ local TriggerState = "DISARMED"
 local clicked = false
 
 ------------------------------------------------------------------  
+-- KILL SCRIPT (DEFINED EARLY FOR UI CALLBACK)  
+------------------------------------------------------------------  
+
+local function KillScript()
+    if not Running then return end
+    Running = false
+
+    AimAssist.Enabled = false
+    AimAssist.CurrentTarget = nil
+    TriggerHeld = false
+    TriggerState = "DISARMED"
+    clicked = false
+
+    ESP:ClearAll()
+
+    for _, conn in ipairs(Connections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    Connections = {}
+
+    if Window and Window.Destroy then
+        pcall(function() Window:Destroy() end)
+    end
+    
+    if Library and Library.Unload then
+        pcall(function() Library:Unload() end)
+    end
+end
+
+------------------------------------------------------------------  
 -- LINORIA UI  
 ------------------------------------------------------------------  
 
@@ -69,19 +99,19 @@ local ConfigTab = Window:AddTab("Config")
 
 -- ESP TAB
 local ESPGroup = ESPTab:AddLeftGroupbox("ESP Settings")
-ESPGroup:AddToggle("ESPEnabled", {
+local ESPEnabledToggle = ESPGroup:AddToggle("ESPEnabled", {
     Text = "ESP Enabled",
     Default = false,
 })
-ESPGroup:AddToggle("ESPArmed", {
+local ESPArmedToggle = ESPGroup:AddToggle("ESPArmed", {
     Text = "ESP Armed",
     Default = false,
 })
-ESPGroup:AddColorPicker("FillColor", {
+local FillColorPicker = ESPGroup:AddColorPicker("FillColor", {
     Text = "Fill Color",
     Default = Color3.fromRGB(255, 0, 0),
 })
-ESPGroup:AddColorPicker("OutlineColor", {
+local OutlineColorPicker = ESPGroup:AddColorPicker("OutlineColor", {
     Text = "Outline Color",
     Default = Color3.fromRGB(255, 255, 255),
 })
@@ -94,11 +124,11 @@ InfoGroup:AddLabel("F7 - Kill Script")
 
 -- CAM TAB
 local CamGroup = CamTab:AddLeftGroupbox("Aim Assist Settings")
-CamGroup:AddToggle("AimAssistEnabled", {
+local AAToggle = CamGroup:AddToggle("AimAssistEnabled", {
     Text = "Aim Assist Enabled",
     Default = false,
 })
-CamGroup:AddSlider("AimAssistStrength", {
+local AAStrengthSlider = CamGroup:AddSlider("AimAssistStrength", {
     Text = "Aim Assist Strength",
     Default = 0.5,
     Min = 0,
@@ -108,14 +138,14 @@ CamGroup:AddSlider("AimAssistStrength", {
 
 -- MISC TAB
 local MiscGroup = MiscTab:AddLeftGroupbox("Movement Settings")
-MiscGroup:AddSlider("WalkSpeed", {
+local WalkSpeedSlider = MiscGroup:AddSlider("WalkSpeed", {
     Text = "Walk Speed",
     Default = 16,
     Min = 1,
     Max = 200,
     Decimals = 0,
 })
-MiscGroup:AddSlider("JumpPower", {
+local JumpPowerSlider = MiscGroup:AddSlider("JumpPower", {
     Text = "Jump Power",
     Default = 50,
     Min = 1,
@@ -134,56 +164,63 @@ ThemeManager:ApplyToTab(ThemeTab)
 SaveManager:SetLibrary(Library)
 SaveManager:BuildConfigSection(ConfigTab)
 
--- Bind UI controls
-Library:OnToggle("ESPEnabled", function(value)
+-- Bind UI callbacks
+ESPEnabledToggle:OnChanged(function(value)
     ESP.Enabled = value
 end)
-Library:OnToggle("ESPArmed", function(value)
+
+ESPArmedToggle:OnChanged(function(value)
     ESP.Armed = value
 end)
-Library:OnColorPicker("FillColor", function(value)
+
+FillColorPicker:OnChanged(function(value)
     ESP.FillColor = value
     for _, highlight in pairs(ESP.Pixels) do
         highlight.FillColor = ESP.FillColor
     end
 end)
-Library:OnColorPicker("OutlineColor", function(value)
+
+OutlineColorPicker:OnChanged(function(value)
     ESP.OutlineColor = value
     for _, highlight in pairs(ESP.Pixels) do
         highlight.OutlineColor = ESP.OutlineColor
     end
 end)
-Library:OnToggle("AimAssistEnabled", function(value)
+
+AAToggle:OnChanged(function(value)
     AimAssist.Enabled = value
     if not value then
         AimAssist.CurrentTarget = nil
     end
 end)
-Library:OnSlider("AimAssistStrength", function(value)
+
+AAStrengthSlider:OnChanged(function(value)
     AimAssist.Strength = value
 end)
-Library:OnSlider("WalkSpeed", function(value)
+
+WalkSpeedSlider:OnChanged(function(value)
     Settings.WalkSpeed = value
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.WalkSpeed = Settings.WalkSpeed
     end
 end)
-Library:OnSlider("JumpPower", function(value)
+
+JumpPowerSlider:OnChanged(function(value)
     Settings.JumpPower = value
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.JumpPower = Settings.JumpPower
     end
 end)
 
--- Set initial values
-Library:SetValue("ESPEnabled", ESP.Enabled)
-Library:SetValue("ESPArmed", ESP.Armed)
-Library:SetValue("FillColor", ESP.FillColor)
-Library:SetValue("OutlineColor", ESP.OutlineColor)
-Library:SetValue("AimAssistEnabled", AimAssist.Enabled)
-Library:SetValue("AimAssistStrength", AimAssist.Strength)
-Library:SetValue("WalkSpeed", Settings.WalkSpeed)
-Library:SetValue("JumpPower", Settings.JumpPower)
+-- Set initial UI values
+ESPEnabledToggle:SetValue(ESP.Enabled)
+ESPArmedToggle:SetValue(ESP.Armed)
+FillColorPicker:SetValue(ESP.FillColor)
+OutlineColorPicker:SetValue(ESP.OutlineColor)
+AAToggle:SetValue(AimAssist.Enabled)
+AAStrengthSlider:SetValue(AimAssist.Strength)
+WalkSpeedSlider:SetValue(Settings.WalkSpeed)
+JumpPowerSlider:SetValue(Settings.JumpPower)
 
 ------------------------------------------------------------------  
 -- CHARACTER RESPAWN  
@@ -198,9 +235,9 @@ local function ApplySpeedSettings()
     hum.JumpPower = Settings.JumpPower
 end
 
-LocalPlayer.CharacterAdded:Connect(function()
+table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function()
     ApplySpeedSettings()
-end)
+end))
 
 ApplySpeedSettings()
 
@@ -253,36 +290,6 @@ function ESP:Update()
 end
 
 ------------------------------------------------------------------  
--- KILL SCRIPT  
-------------------------------------------------------------------  
-
-local function KillScript()
-    if not Running then return end
-    Running = false
-
-    AimAssist.Enabled = false
-    AimAssist.CurrentTarget = nil
-    TriggerHeld = false
-    TriggerState = "DISARMED"
-    clicked = false
-
-    ESP:ClearAll()
-
-    for _, conn in ipairs(Connections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    Connections = {}
-
-    if Window and Window.Destroy then
-        pcall(function() Window:Destroy() end)
-    end
-    
-    if Library and Library.Unload then
-        pcall(function() Library:Unload() end)
-    end
-end
-
-------------------------------------------------------------------  
 -- INPUT  
 ------------------------------------------------------------------  
 
@@ -295,11 +302,11 @@ table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp
 
     if input.KeyCode == Enum.KeyCode.L then 
         ESP.Armed = not ESP.Armed
-        Library:SetValue("ESPArmed", ESP.Armed)
+        ESPArmedToggle:SetValue(ESP.Armed)
     end
     if input.KeyCode == Enum.KeyCode.C then 
         AimAssist.Enabled = not AimAssist.Enabled
-        Library:SetValue("AimAssistEnabled", AimAssist.Enabled)
+        AAToggle:SetValue(AimAssist.Enabled)
         if not AimAssist.Enabled then
             AimAssist.CurrentTarget = nil
         end
