@@ -28,8 +28,8 @@ local Connections = {}
 local ESP = {
     Enabled = false,
     Armed = false,
-    Pixels = {},
-    NameTags = {},
+    Highlights = {},      -- Highlight objects by character
+    NameTags = {},        -- BillboardGui objects by character
     FillColor = Color3.fromRGB(255, 0, 0),
     OutlineColor = Color3.fromRGB(255, 255, 255)
 }
@@ -37,13 +37,11 @@ local ESP = {
 local AimAssist = {
     Enabled = false,
     Strength = 0.5,
-    CurrentTarget = nil,
-    TargetLockTime = 0
+    CurrentTarget = nil
 }
 
 local TriggerHeld = false
 local TriggerState = "DISARMED"
-local clicked = false
 
 
 ------------------------------------------------------------------
@@ -64,7 +62,6 @@ local Settings = {
 }
 
 local function SaveSettings()
-
     Settings.ESPEnabled = ESP.Enabled
     Settings.ESPArmed = ESP.Armed
     Settings.FillColor = ESP.FillColor
@@ -81,19 +78,16 @@ local function SaveSettings()
         Settings.UISizeX = mainFrame.Size.X.Offset
         Settings.UISizeY = mainFrame.Size.Y.Offset
     end
-
 end
 
 
 local function LoadSettings()
-
     ESP.Enabled = Settings.ESPEnabled
     ESP.Armed = Settings.ESPArmed
     ESP.FillColor = Settings.FillColor
     ESP.OutlineColor = Settings.OutlineColor
     AimAssist.Enabled = Settings.AimAssistEnabled
     AimAssist.Strength = Settings.AimAssistStrength
-
 end
 
 
@@ -102,7 +96,6 @@ end
 ------------------------------------------------------------------
 
 local function HSVToRGB(h, s, v)
-
     local c = v * s
     local x = c * (1 - math.abs((h / 60) % 2 - 1))
     local m = v - c
@@ -111,30 +104,23 @@ local function HSVToRGB(h, s, v)
 
     if h < 60 then
         r, g, b = c, x, 0
-
     elseif h < 120 then
         r, g, b = x, c, 0
-
     elseif h < 180 then
         r, g, b = 0, c, x
-
     elseif h < 240 then
         r, g, b = 0, x, c
-
     elseif h < 300 then
         r, g, b = x, 0, c
-
     else
         r, g, b = c, x, 0
     end
 
     return Color3.new(r + m, g + m, b + m)
-
 end
 
 
 local function RGBToHSV(color)
-
     local r = color.R
     local g = color.G
     local b = color.B
@@ -146,67 +132,48 @@ local function RGBToHSV(color)
     local h = 0
 
     if d == 0 then
-
         h = 0
-
     elseif max == r then
-
         h = 60 * (((g - b) / d) % 6)
-
     elseif max == g then
-
         h = 60 * (((b - r) / d) + 2)
-
     elseif max == b then
-
         h = 60 * (((r - g) / d) + 4)
-
     end
 
     local s = (max == 0) and 0 or (d / max)
     local v = max
 
     return h, s, v
-
 end
-
-------------------------------------------------------------------
--- UI
-------------------------------------------------------------------
-
-local screenGui
-local mainFrame
-local resizeHandle
-
-local mainTab
-local debugTab
-local settingsTab
-
-local mainContent
-local debugContent
-local settingsContent
-
-local espToggle
-local stateLabel
-local killButton
-
-local svSquare
-local hueBar
-local preview
-
-local applyFill
-local applyOutline
-
-local svSelector
-local hueSelector
 
 
 ------------------------------------------------------------------
 -- UI CREATION
 ------------------------------------------------------------------
 
-local function createUI()
+local screenGui
+local mainFrame
+local resizeHandle
+local mainTab
+local debugTab
+local settingsTab
+local mainContent
+local debugContent
+local settingsContent
+local espToggle
+local stateLabel
+local killButton
+local svSquare
+local hueBar
+local preview
+local applyFill
+local applyOutline
+local svSelector
+local hueSelector
 
+
+local function createUI()
     LoadSettings()
 
     local function setDragging(state)
@@ -216,29 +183,17 @@ local function createUI()
     end
 
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
-
     if pg then
         local old = pg:FindFirstChild("ESP_UI")
-
         if old then
             old:Destroy()
         end
     end
 
-
-    ------------------------------------------------------------------
-    -- SCREEN GUI
-    ------------------------------------------------------------------
-
     screenGui = Instance.new("ScreenGui")
     screenGui.Name = "ESP_UI"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-
-    ------------------------------------------------------------------
-    -- MAIN FRAME
-    ------------------------------------------------------------------
 
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
@@ -249,13 +204,7 @@ local function createUI()
     mainFrame.Active = true
     mainFrame.Draggable = true
     mainFrame.Parent = screenGui
-
     Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
-
-
-    ------------------------------------------------------------------
-    -- RESIZE HANDLE
-    ------------------------------------------------------------------
 
     resizeHandle = Instance.new("Frame")
     resizeHandle.Size = UDim2.new(0, 14, 0, 14)
@@ -264,13 +213,7 @@ local function createUI()
     resizeHandle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     resizeHandle.BorderSizePixel = 0
     resizeHandle.Parent = mainFrame
-
     Instance.new("UICorner", resizeHandle).CornerRadius = UDim.new(0, 3)
-
-
-    ------------------------------------------------------------------
-    -- TITLE BAR
-    ------------------------------------------------------------------
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 30)
@@ -280,24 +223,13 @@ local function createUI()
     title.TextScaled = true
     title.BorderSizePixel = 0
     title.Parent = mainFrame
-
     Instance.new("UICorner", title).CornerRadius = UDim.new(0, 8)
-
-
-    ------------------------------------------------------------------
-    -- TAB BAR
-    ------------------------------------------------------------------
 
     local tabBar = Instance.new("Frame")
     tabBar.Size = UDim2.new(1, -10, 0, 26)
     tabBar.Position = UDim2.new(0, 5, 0, 32)
     tabBar.BackgroundTransparency = 1
     tabBar.Parent = mainFrame
-
-
-    ------------------------------------------------------------------
-    -- MAIN TAB
-    ------------------------------------------------------------------
 
     mainTab = Instance.new("TextButton")
     mainTab.Size = UDim2.new(1/3, -5, 1, 0)
@@ -308,13 +240,7 @@ local function createUI()
     mainTab.Text = "Main"
     mainTab.BorderSizePixel = 0
     mainTab.Parent = tabBar
-
     Instance.new("UICorner", mainTab).CornerRadius = UDim.new(0, 6)
-
-
-    ------------------------------------------------------------------
-    -- DEBUG TAB
-    ------------------------------------------------------------------
 
     debugTab = Instance.new("TextButton")
     debugTab.Size = UDim2.new(1/3, -5, 1, 0)
@@ -325,13 +251,7 @@ local function createUI()
     debugTab.Text = "Debug"
     debugTab.BorderSizePixel = 0
     debugTab.Parent = tabBar
-
     Instance.new("UICorner", debugTab).CornerRadius = UDim.new(0, 6)
-
-
-    ------------------------------------------------------------------
-    -- SETTINGS TAB
-    ------------------------------------------------------------------
 
     settingsTab = Instance.new("TextButton")
     settingsTab.Size = UDim2.new(1/3, -5, 1, 0)
@@ -342,12 +262,7 @@ local function createUI()
     settingsTab.Text = "ESP Settings"
     settingsTab.BorderSizePixel = 0
     settingsTab.Parent = tabBar
-
     Instance.new("UICorner", settingsTab).CornerRadius = UDim.new(0, 6)
-
-        ------------------------------------------------------------------
-    -- MAIN CONTENT
-    ------------------------------------------------------------------
 
     mainContent = Instance.new("Frame")
     mainContent.Size = UDim2.new(1, -10, 1, -90)
@@ -355,7 +270,6 @@ local function createUI()
     mainContent.BackgroundTransparency = 1
     mainContent.Name = "MainContent"
     mainContent.Parent = mainFrame
-
 
     espToggle = Instance.new("TextButton")
     espToggle.Size = UDim2.new(0, 260, 0, 36)
@@ -366,9 +280,7 @@ local function createUI()
     espToggle.BorderSizePixel = 0
     espToggle.Text = ESP.Enabled and "ESP: ON" or "ESP: OFF"
     espToggle.Parent = mainContent
-
     Instance.new("UICorner", espToggle).CornerRadius = UDim.new(0, 6)
-
 
     local info = Instance.new("TextLabel")
     info.Size = UDim2.new(1, -10, 0, 40)
@@ -379,10 +291,6 @@ local function createUI()
     info.TextWrapped = true
     info.Text = "L = Arm/Disarm | Hold V = Trigger | RightShift = Hide UI"
     info.Parent = mainContent
-
-    ------------------------------------------------------------------
-    -- AIM ASSIST TOGGLE
-    ------------------------------------------------------------------
 
     local aaToggle = Instance.new("TextButton")
     aaToggle.Size = UDim2.new(0, 260, 0, 30)
@@ -400,10 +308,6 @@ local function createUI()
         aaToggle.Text = AimAssist.Enabled and "Aim Assist: ON" or "Aim Assist: OFF"
         SaveSettings()
     end)
-
-    ------------------------------------------------------------------
-    -- AIM ASSIST STRENGTH SLIDER
-    ------------------------------------------------------------------
 
     local sliderBg = Instance.new("Frame")
     sliderBg.Size = UDim2.new(0, 260, 0, 20)
@@ -461,10 +365,6 @@ local function createUI()
             end
         end)
     end
-
-    ------------------------------------------------------------------
-    -- WALK SPEED SLIDER
-    ------------------------------------------------------------------
 
     local wsLabel = Instance.new("TextLabel")
     wsLabel.Size = UDim2.new(0, 130, 0, 20)
@@ -530,10 +430,6 @@ local function createUI()
             end
         end)
     end
-
-    ------------------------------------------------------------------
-    -- JUMP POWER SLIDER
-    ------------------------------------------------------------------
 
     local jpLabel = Instance.new("TextLabel")
     jpLabel.Size = UDim2.new(0, 130, 0, 20)
@@ -609,13 +505,7 @@ local function createUI()
     killButton.Text = "KILL SCRIPT"
     killButton.BorderSizePixel = 0
     killButton.Parent = mainContent
-
     Instance.new("UICorner", killButton).CornerRadius = UDim.new(0, 6)
-
-
-    ------------------------------------------------------------------
-    -- DEBUG CONTENT
-    ------------------------------------------------------------------
 
     debugContent = Instance.new("Frame")
     debugContent.Size = UDim2.new(1, -10, 1, -90)
@@ -624,7 +514,6 @@ local function createUI()
     debugContent.Name = "DebugContent"
     debugContent.Visible = false
     debugContent.Parent = mainFrame
-
 
     stateLabel = Instance.new("TextLabel")
     stateLabel.Size = UDim2.new(1, -10, 0, 30)
@@ -635,9 +524,7 @@ local function createUI()
     stateLabel.BorderSizePixel = 0
     stateLabel.Text = "Trigger state: " .. TriggerState
     stateLabel.Parent = debugContent
-
     Instance.new("UICorner", stateLabel).CornerRadius = UDim.new(0, 6)
-
 
     local debugInfo = Instance.new("TextLabel")
     debugInfo.Size = UDim2.new(1, -10, 0, 70)
@@ -646,17 +533,8 @@ local function createUI()
     debugInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
     debugInfo.TextScaled = true
     debugInfo.TextWrapped = true
-    debugInfo.Text =
-        "DISARMED: V not held\n" ..
-        "ARMED: Ready, V can be held\n" ..
-        "HOLDING: V held, scanning\n" ..
-        "TARGET: enemy in center"
+    debugInfo.Text = "DISARMED: V not held\nARMED: Ready, V can be held\nHOLDING: V held, scanning\nTARGET: enemy in center"
     debugInfo.Parent = debugContent
-
-
-    ------------------------------------------------------------------
-    -- SETTINGS CONTENT
-    ------------------------------------------------------------------
 
     settingsContent = Instance.new("Frame")
     settingsContent.Size = UDim2.new(1, -10, 1, -90)
@@ -666,19 +544,13 @@ local function createUI()
     settingsContent.Visible = false
     settingsContent.Parent = mainFrame
 
-
     local pickerFrame = Instance.new("Frame")
     pickerFrame.Size = UDim2.new(0, 210, 0, 160)
     pickerFrame.Position = UDim2.new(0, 10, 0, 5)
     pickerFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     pickerFrame.BorderSizePixel = 0
     pickerFrame.Parent = settingsContent
-
     Instance.new("UICorner", pickerFrame).CornerRadius = UDim.new(0, 6)
-
-        ------------------------------------------------------------------
-    -- SATURATION / VALUE SQUARE
-    ------------------------------------------------------------------
 
     svSquare = Instance.new("Frame")
     svSquare.Size = UDim2.new(0, 130, 0, 130)
@@ -687,7 +559,6 @@ local function createUI()
     svSquare.BorderSizePixel = 0
     svSquare.Parent = pickerFrame
 
-
     svSelector = Instance.new("Frame")
     svSelector.Size = UDim2.new(0, 8, 0, 8)
     svSelector.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -695,13 +566,7 @@ local function createUI()
     svSelector.BorderSizePixel = 1
     svSelector.BorderColor3 = Color3.new(0, 0, 0)
     svSelector.Parent = svSquare
-
     Instance.new("UICorner", svSelector).CornerRadius = UDim.new(1, 0)
-
-
-    ------------------------------------------------------------------
-    -- WHITE OVERLAY GRADIENT
-    ------------------------------------------------------------------
 
     local whiteOverlay = Instance.new("Frame")
     whiteOverlay.Size = UDim2.new(1, 0, 1, 0)
@@ -709,25 +574,17 @@ local function createUI()
     whiteOverlay.BorderSizePixel = 0
     whiteOverlay.Parent = svSquare
 
-
     local whiteGrad = Instance.new("UIGradient")
     whiteGrad.Color = ColorSequence.new{
         ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
     }
-
     whiteGrad.Transparency = NumberSequence.new{
         NumberSequenceKeypoint.new(0, 0),
         NumberSequenceKeypoint.new(1, 1)
     }
-
     whiteGrad.Rotation = 90
     whiteGrad.Parent = whiteOverlay
-
-
-    ------------------------------------------------------------------
-    -- BLACK OVERLAY GRADIENT
-    ------------------------------------------------------------------
 
     local blackOverlay = Instance.new("Frame")
     blackOverlay.Size = UDim2.new(1, 0, 1, 0)
@@ -735,25 +592,17 @@ local function createUI()
     blackOverlay.BorderSizePixel = 0
     blackOverlay.Parent = svSquare
 
-
     local blackGrad = Instance.new("UIGradient")
     blackGrad.Color = ColorSequence.new{
         ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
     }
-
     blackGrad.Transparency = NumberSequence.new{
         NumberSequenceKeypoint.new(0, 1),
         NumberSequenceKeypoint.new(1, 0)
     }
-
     blackGrad.Rotation = 0
     blackGrad.Parent = blackOverlay
-
-
-    ------------------------------------------------------------------
-    -- HUE BAR
-    ------------------------------------------------------------------
 
     hueBar = Instance.new("Frame")
     hueBar.Size = UDim2.new(0, 20, 0, 130)
@@ -761,7 +610,6 @@ local function createUI()
     hueBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     hueBar.BorderSizePixel = 0
     hueBar.Parent = pickerFrame
-
 
     hueSelector = Instance.new("Frame")
     hueSelector.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -772,10 +620,8 @@ local function createUI()
     hueSelector.BorderColor3 = Color3.new(0, 0, 0)
     hueSelector.Parent = hueBar
 
-
     local hueGrad = Instance.new("UIGradient")
     hueGrad.Color = ColorSequence.new{
-
         ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 0)),
         ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 0, 255)),
         ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 0, 255)),
@@ -783,17 +629,10 @@ local function createUI()
         ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 255, 0)),
         ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 255, 0)),
         ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 0))
-
     }
-
     hueGrad.Transparency = NumberSequence.new(0)
     hueGrad.Rotation = 90
     hueGrad.Parent = hueBar
-
-
-    ------------------------------------------------------------------
-    -- COLOR PREVIEW
-    ------------------------------------------------------------------
 
     preview = Instance.new("Frame")
     preview.Size = UDim2.new(0, 40, 0, 40)
@@ -801,13 +640,7 @@ local function createUI()
     preview.BackgroundColor3 = ESP.FillColor
     preview.BorderSizePixel = 0
     preview.Parent = pickerFrame
-
     Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 4)
-
-
-    ------------------------------------------------------------------
-    -- APPLY BUTTONS
-    ------------------------------------------------------------------
 
     applyFill = Instance.new("TextButton")
     applyFill.Size = UDim2.new(0, 120, 0, 24)
@@ -818,94 +651,46 @@ local function createUI()
     applyFill.Text = "Apply to Fill"
     applyFill.BorderSizePixel = 0
     applyFill.Parent = settingsContent
-
     Instance.new("UICorner", applyFill).CornerRadius = UDim.new(0, 4)
-
 
     applyOutline = applyFill:Clone()
     applyOutline.Text = "Apply to Outline"
     applyOutline.Position = UDim2.new(0, 230, 0, 50)
     applyOutline.Parent = settingsContent
 
-        ------------------------------------------------------------------
-    -- APPLY BUTTON LOGIC
-    ------------------------------------------------------------------
-
     applyFill.MouseButton1Click:Connect(function()
-
         ESP.FillColor = preview.BackgroundColor3
-
-        for _, highlight in pairs(ESP.Pixels) do
+        for _, highlight in pairs(ESP.Highlights) do
             highlight.FillColor = ESP.FillColor
         end
-
         SaveSettings()
-
     end)
-
 
     applyOutline.MouseButton1Click:Connect(function()
-
         ESP.OutlineColor = preview.BackgroundColor3
-
-        for _, highlight in pairs(ESP.Pixels) do
+        for _, highlight in pairs(ESP.Highlights) do
             highlight.OutlineColor = ESP.OutlineColor
         end
-
         SaveSettings()
-
     end)
 
-
-    ------------------------------------------------------------------
-    -- TAB SWITCHING
-    ------------------------------------------------------------------
-
     local function setTab(which)
-
         mainContent.Visible = (which == "main")
         debugContent.Visible = (which == "debug")
         settingsContent.Visible = (which == "settings")
 
-        mainTab.BackgroundColor3 =
-            (which == "main") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
-
-        mainTab.TextColor3 =
-            (which == "main") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-
-
-        debugTab.BackgroundColor3 =
-            (which == "debug") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
-
-        debugTab.TextColor3 =
-            (which == "debug") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-
-
-        settingsTab.BackgroundColor3 =
-            (which == "settings") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
-
-        settingsTab.TextColor3 =
-            (which == "settings") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-
+        mainTab.BackgroundColor3 = (which == "main") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+        mainTab.TextColor3 = (which == "main") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+        debugTab.BackgroundColor3 = (which == "debug") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+        debugTab.TextColor3 = (which == "debug") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+        settingsTab.BackgroundColor3 = (which == "settings") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+        settingsTab.TextColor3 = (which == "settings") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
     end
 
-
-    mainTab.MouseButton1Click:Connect(function()
-        setTab("main")
-    end)
-
-
-    debugTab.MouseButton1Click:Connect(function()
-        setTab("debug")
-    end)
-
-
-    settingsTab.MouseButton1Click:Connect(function()
-        setTab("settings")
-    end)
-
+    mainTab.MouseButton1Click:Connect(function() setTab("main") end)
+    debugTab.MouseButton1Click:Connect(function() setTab("debug") end)
+    settingsTab.MouseButton1Click:Connect(function() setTab("settings") end)
 end
-
 
 createUI()
 
@@ -915,566 +700,414 @@ createUI()
 ------------------------------------------------------------------
 
 local function ApplySpeedSettings()
-
     if not LocalPlayer then return end
     local char = LocalPlayer.Character
     if not char then return end
-
     local humanoid = char:FindFirstChild("Humanoid")
     if not humanoid then return end
-
     humanoid.WalkSpeed = Settings.WalkSpeed
     humanoid.JumpPower = Settings.JumpPower
-
 end
 
 local function OnCharacterAdded(newChar)
-
     local humanoid = newChar:WaitForChild("Humanoid")
-
     ApplySpeedSettings()
-
 end
 
 LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
-
--- Initial application
 ApplySpeedSettings()
 
 
 local function setDragging(state)
-
     if mainFrame then
         mainFrame.Draggable = state
     end
-
 end
 
+
 ------------------------------------------------------------------
--- RESIZABLE UI (LOCK DRAG ONLY WHILE RESIZING)
+-- RESIZABLE UI
 ------------------------------------------------------------------
 
 do
-
     local resizing = false
     local startMousePos
     local startSize
     local oldDraggable
 
-
     resizeHandle.InputBegan:Connect(function(input)
-
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-
             resizing = true
             startMousePos = UserInputService:GetMouseLocation()
             startSize = mainFrame.Size
-
             oldDraggable = mainFrame.Draggable
             mainFrame.Draggable = false
-
         end
-
     end)
 
-
     UserInputService.InputEnded:Connect(function(input)
-
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-
             if resizing then
-
                 resizing = false
-
                 if oldDraggable ~= nil then
                     mainFrame.Draggable = oldDraggable
                 else
                     mainFrame.Draggable = true
                 end
-
             end
-
         end
-
     end)
-
 
     UserInputService.InputChanged:Connect(function(input)
-
-        if not resizing then
-            return
-        end
-
-        if input.UserInputType ~= Enum.UserInputType.MouseMovement then
-            return
-        end
-
+        if not resizing then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
 
         local currentPos = UserInputService:GetMouseLocation()
-
         local dx = currentPos.X - startMousePos.X
         local dy = currentPos.Y - startMousePos.Y
-
-
         local newW = math.max(300, startSize.X.Offset + dx)
         local newH = math.max(220, startSize.Y.Offset + dy)
-
-
         mainFrame.Size = UDim2.new(0, newW, 0, newH)
-
         SaveSettings()
-
     end)
-
 end
 
+
 ------------------------------------------------------------------
--- COLOR PICKER LOGIC (FIXED)
+-- COLOR PICKER LOGIC
 ------------------------------------------------------------------
 
 local currentHue = 0
 local currentS = 1
 local currentV = 1
 
-
 local function updateFromHSV()
-
     local color = Color3.fromHSV(currentHue / 360, currentS, currentV)
-
     preview.BackgroundColor3 = color
-
     svSquare.BackgroundColor3 = Color3.fromHSV(currentHue / 360, 1, 1)
     svSquare.BackgroundTransparency = 0
-
-
     if svSelector then
         svSelector.Position = UDim2.new(currentS, 0, 1 - currentV, 0)
     end
-
     if hueSelector then
         hueSelector.Position = UDim2.new(0.5, 0, 1 - (currentHue / 360), 0)
     end
-
 end
 
-
 updateFromHSV()
-
 svSelector.Position = UDim2.new(currentS, 0, 1 - currentV, 0)
 
 
-------------------------------------------------------------------
--- SV SQUARE INPUT
-------------------------------------------------------------------
-
 svSquare.InputBegan:Connect(function(input)
-
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-
         setDragging(false)
-
         local moveConn
         local endConn
-
-
         moveConn = UserInputService.InputChanged:Connect(function(i)
-
             if i.UserInputType == Enum.UserInputType.MouseMovement then
-
                 local mouse = UserInputService:GetMouseLocation()
-
                 local relX = mouse.X - svSquare.AbsolutePosition.X
                 local relY = mouse.Y - svSquare.AbsolutePosition.Y
-
                 local sx = math.clamp(relX / svSquare.AbsoluteSize.X, 0, 1)
                 local sy = math.clamp(relY / svSquare.AbsoluteSize.Y, 0, 1)
-
                 currentS = sx
                 currentV = 1 - sy
-
                 updateFromHSV()
-
             end
-
         end)
-
-
         endConn = UserInputService.InputEnded:Connect(function(i2)
-
             if i2.UserInputType == Enum.UserInputType.MouseButton1 then
-
-                if moveConn then
-                    moveConn:Disconnect()
-                end
-
-                if endConn then
-                    endConn:Disconnect()
-                end
-
+                if moveConn then moveConn:Disconnect() end
+                if endConn then endConn:Disconnect() end
                 setDragging(true)
-
             end
-
         end)
-
     end
-
 end)
 
-
-------------------------------------------------------------------
--- HUE BAR INPUT
-------------------------------------------------------------------
 
 hueBar.InputBegan:Connect(function(input)
-
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-
         setDragging(false)
-
         local moveConn
         local endConn
-
-
         moveConn = UserInputService.InputChanged:Connect(function(i)
-
             if i.UserInputType == Enum.UserInputType.MouseMovement then
-
                 local mouse = UserInputService:GetMouseLocation()
-
                 local relY = mouse.Y - hueBar.AbsolutePosition.Y
-
                 local t = math.clamp(relY / hueBar.AbsoluteSize.Y, 0, 1)
-
                 currentHue = (1 - t) * 360
-
                 updateFromHSV()
-
             end
-
         end)
-
-
         endConn = UserInputService.InputEnded:Connect(function(i2)
-
             if i2.UserInputType == Enum.UserInputType.MouseButton1 then
-
-                if moveConn then
-                    moveConn:Disconnect()
-                end
-
-                if endConn then
-                    endConn:Disconnect()
-                end
-
+                if moveConn then moveConn:Disconnect() end
+                if endConn then endConn:Disconnect() end
                 setDragging(true)
-
             end
-
         end)
-
     end
-
 end)
 
+
 ------------------------------------------------------------------
--- ESP FUNCTIONS (WITH NAMETAGS BELOW)
+-- ESP FUNCTIONS (COMPLETELY REWRITTEN)
 ------------------------------------------------------------------
 
-function ESP:CreatePixel(character, player)
-
-    if not character or self.Pixels[character] then
-        return
-    end
-
-    local highlight = Instance.new("Highlight")
-
-    highlight.Name = "ESP_Highlight"
-    highlight.FillColor = self.FillColor
-    highlight.FillTransparency = 0.5
-    highlight.OutlineColor = self.OutlineColor
-    highlight.OutlineTransparency = 0
-    highlight.Adornee = character
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = character
-
-    self.Pixels[character] = highlight
+-- Creates a BillboardGui name tag BELOW the player
+local function CreateNameTag(character, player)
+    -- Get the HumanoidRootPart for positioning (better than Head for "below")
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
+    if not rootPart then return nil end
     
-    -- Create BillboardGui for name tag (BELOW the player)
+    -- BillboardGui MUST be parented to PlayerGui, NOT the character![citation:9]
+    -- This is the critical fix - BillboardGui objects don't render correctly when parented to parts
     local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ESP_NameTag"
-    billboard.Size = UDim2.new(0, 200, 0, 25)
-    billboard.Adornee = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
-    billboard.AlwaysOnTop = true
-    billboard.StudsOffset = Vector3.new(0, -2.5, 0) -- Negative Y = below player
-    billboard.Parent = character
+    billboard.Name = "ESP_NameTag_" .. player.Name
+    billboard.Adornee = rootPart  -- Attaches to the root part
+    billboard.Size = UDim2.new(0, 200, 0, 35)  -- Width 200, Height 35
+    billboard.StudsOffset = Vector3.new(0, -2.5, 0)  -- Negative Y = BELOW the player
+    billboard.AlwaysOnTop = true  -- Always visible through walls[citation:8]
+    billboard.ResetOnSpawn = false
+    billboard.Parent = screenGui  -- Parent to ScreenGui, NOT the character!
     
+    -- Name label (display name)
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "NameLabel"
-    nameLabel.Size = UDim2.new(1, 0, 1, 0)
+    nameLabel.Size = UDim2.new(1, 0, 0.6, 0)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
     nameLabel.BackgroundTransparency = 1
     nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     nameLabel.TextScaled = true
-    nameLabel.Font = Enum.Font.GothomBold
+    nameLabel.Font = Enum.Font.GothamBold
     nameLabel.TextStrokeTransparency = 0.2
     nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     nameLabel.Text = player.DisplayName or player.Name
     nameLabel.Parent = billboard
     
-    -- Add distance text below name
-    local distanceLabel = Instance.new("TextLabel")
-    distanceLabel.Name = "DistanceLabel"
-    distanceLabel.Size = UDim2.new(1, 0, 0, 15)
-    distanceLabel.Position = UDim2.new(0, 0, 1, 0)
-    distanceLabel.BackgroundTransparency = 1
-    distanceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    distanceLabel.TextScaled = true
-    distanceLabel.Font = Enum.Font.Gothom
-    distanceLabel.TextStrokeTransparency = 0.3
-    distanceLabel.Text = ""
-    distanceLabel.Parent = billboard
+    -- Distance label (below the name)
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Name = "DistanceLabel"
+    distLabel.Size = UDim2.new(1, 0, 0.4, 0)
+    distLabel.Position = UDim2.new(0, 0, 0.6, 0)
+    distLabel.BackgroundTransparency = 1
+    distLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    distLabel.TextScaled = true
+    distLabel.Font = Enum.Font.Gotham
+    distLabel.TextStrokeTransparency = 0.3
+    distLabel.Text = "0m"
+    distLabel.Parent = billboard
     
-    self.NameTags[character] = billboard
-
+    return billboard
 end
 
 
-function ESP:RemovePixel(character)
+-- Updates the distance text on a name tag
+local function UpdateDistanceText(billboard, distance)
+    if billboard and billboard:FindFirstChild("DistanceLabel") then
+        local distLabel = billboard.DistanceLabel
+        local rounded = math.floor(distance + 0.5)
+        distLabel.Text = tostring(rounded) .. "m"
+    end
+end
 
-    if character and self.Pixels[character] then
 
-        self.Pixels[character]:Destroy()
-        self.Pixels[character] = nil
-        
-        if self.NameTags[character] then
-            self.NameTags[character]:Destroy()
-            self.NameTags[character] = nil
+-- Creates the Highlight effect around a character
+local function CreateHighlight(character)
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ESP_Highlight"
+    highlight.FillColor = ESP.FillColor
+    highlight.FillTransparency = 0.5
+    highlight.OutlineColor = ESP.OutlineColor
+    highlight.OutlineTransparency = 0
+    highlight.Adornee = character
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = character
+    return highlight
+end
+
+
+-- Removes ESP for a specific character
+local function RemoveESPForCharacter(character)
+    if ESP.Highlights[character] then
+        ESP.Highlights[character]:Destroy()
+        ESP.Highlights[character] = nil
+    end
+    if ESP.NameTags[character] then
+        ESP.NameTags[character]:Destroy()
+        ESP.NameTags[character] = nil
+    end
+end
+
+
+-- Clears all ESP objects
+local function ClearAllESP()
+    for _, highlight in pairs(ESP.Highlights) do
+        pcall(function() highlight:Destroy() end)
+    end
+    for _, tag in pairs(ESP.NameTags) do
+        pcall(function() tag:Destroy() end)
+    end
+    ESP.Highlights = {}
+    ESP.NameTags = {}
+end
+
+
+-- Main ESP update function
+local function UpdateESP()
+    if not ESP.Enabled or not ESP.Armed then
+        if next(ESP.Highlights) ~= nil or next(ESP.NameTags) ~= nil then
+            ClearAllESP()
         end
-
-    end
-
-end
-
-
-function ESP:ClearAll()
-
-    for _, h in pairs(self.Pixels) do
-        h:Destroy()
-    end
-    
-    for _, tag in pairs(self.NameTags) do
-        tag:Destroy()
-    end
-
-    self.Pixels = {}
-    self.NameTags = {}
-
-end
-
-
-function ESP:Update()
-
-    if not self.Enabled or not self.Armed then
-
-        if next(self.Pixels) ~= nil then
-            self:ClearAll()
-        end
-
         return
     end
-
-    local cameraPos = Camera.CFrame.Position
-
-    for _, plr in ipairs(Players:GetPlayers()) do
-
-        if plr ~= LocalPlayer then
-
-            local char = plr.Character
-
-            if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+    
+    local cameraPos = Camera and Camera.CFrame.Position or Vector3.new()
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local character = player.Character
+            local humanoid = character and character:FindFirstChild("Humanoid")
+            
+            if character and humanoid and humanoid.Health > 0 then
+                -- Check if ESP already exists for this character
+                if not ESP.Highlights[character] then
+                    local highlight = CreateHighlight(character)
+                    ESP.Highlights[character] = highlight
+                end
                 
-                local humanoid = char:FindFirstChild("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    
-                    -- Calculate distance
-                    local rootPart = char:FindFirstChild("HumanoidRootPart")
-                    if rootPart then
-                        local distance = (rootPart.Position - cameraPos).Magnitude
-                        
-                        -- Show ESP regardless of distance (removed distance limit)
-                        if not self.Pixels[char] then
-                            self:CreatePixel(char, plr)
-                        else
-                            -- Update name tag display name in case it changed
-                            local tag = self.NameTags[char]
-                            if tag then
-                                local label = tag:FindFirstChild("NameLabel")
-                                if label then
-                                    label.Text = plr.DisplayName or plr.Name
-                                end
-                                
-                                -- Update distance
-                                local distLabel = tag:FindFirstChild("DistanceLabel")
-                                if distLabel then
-                                    local distText = string.format("%.1fm", distance)
-                                    distLabel.Text = distText
-                                end
-                            end
-                        end
+                if not ESP.NameTags[character] then
+                    local nameTag = CreateNameTag(character, player)
+                    if nameTag then
+                        ESP.NameTags[character] = nameTag
                     end
                 else
-                    self:RemovePixel(char)
+                    -- Update display name if it changed
+                    local nameTag = ESP.NameTags[character]
+                    if nameTag and nameTag:FindFirstChild("NameLabel") then
+                        local nameLabel = nameTag.NameLabel
+                        if nameLabel.Text ~= (player.DisplayName or player.Name) then
+                            nameLabel.Text = player.DisplayName or player.Name
+                        end
+                    end
                 end
-
+                
+                -- Update distance if we have a name tag
+                if ESP.NameTags[character] and character:FindFirstChild("HumanoidRootPart") then
+                    local rootPart = character.HumanoidRootPart
+                    local distance = (rootPart.Position - cameraPos).Magnitude
+                    UpdateDistanceText(ESP.NameTags[character], distance)
+                end
             else
-
-                self:RemovePixel(char)
-
+                -- Character is dead or doesn't exist, remove ESP
+                if character then
+                    RemoveESPForCharacter(character)
+                end
             end
-
         end
-
     end
-
+    
+    -- Clean up ESP for characters that no longer exist
+    for character, _ in pairs(ESP.Highlights) do
+        if not character or not character.Parent then
+            RemoveESPForCharacter(character)
+        end
+    end
+    for character, _ in pairs(ESP.NameTags) do
+        if not character or not character.Parent then
+            RemoveESPForCharacter(character)
+        end
+    end
 end
+
 
 ------------------------------------------------------------------
 -- KILL SCRIPT
 ------------------------------------------------------------------
 
 local function KillScript()
-
     Running = false
-
-    ESP:ClearAll()
-
+    ClearAllESP()
     if screenGui then
         screenGui:Destroy()
     end
-
-
     for _, conn in ipairs(Connections) do
-        pcall(function()
-            conn:Disconnect()
-        end)
+        pcall(function() conn:Disconnect() end)
     end
-
 end
 
-
-table.insert(
-    Connections,
-    killButton.MouseButton1Click:Connect(KillScript)
-)
+table.insert(Connections, killButton.MouseButton1Click:Connect(KillScript))
 
 
 ------------------------------------------------------------------
 -- UI TOGGLE + ESP BUTTON
 ------------------------------------------------------------------
 
-table.insert(
-    Connections,
-    UserInputService.InputBegan:Connect(function(input, gp)
-
-        if gp then return end
-
-        if input.KeyCode == Enum.KeyCode.RightShift then
-
-            if mainFrame then
-                mainFrame.Visible = not mainFrame.Visible
-            end
-
+table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        if mainFrame then
+            mainFrame.Visible = not mainFrame.Visible
         end
+    end
+end))
 
-    end)
-)
+
+table.insert(Connections, espToggle.MouseButton1Click:Connect(function()
+    ESP.Enabled = not ESP.Enabled
+    espToggle.Text = ESP.Enabled and "ESP: ON" or "ESP: OFF"
+    if not ESP.Enabled then
+        ClearAllESP()
+    end
+    SaveSettings()
+end))
 
 
-table.insert(
-    Connections,
-    espToggle.MouseButton1Click:Connect(function()
+------------------------------------------------------------------
+-- INPUT HANDLERS
+------------------------------------------------------------------
 
-        ESP.Enabled = not ESP.Enabled
-
-        espToggle.Text = ESP.Enabled and "ESP: ON" or "ESP: OFF"
-
-        if not ESP.Enabled then
-            ESP:ClearAll()
+table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp)
+    if input.KeyCode == Enum.KeyCode.F7 then
+        KillScript()
+        return
+    end
+    if gp then return end
+    
+    if input.KeyCode == Enum.KeyCode.L then
+        ESP.Armed = not ESP.Armed
+        if not ESP.Enabled and ESP.Armed then
+            -- If arming ESP but it's not enabled, do nothing until enabled
         end
-
+    end
+    
+    if input.KeyCode == Enum.KeyCode.C then
+        AimAssist.Enabled = not AimAssist.Enabled
         SaveSettings()
-
-    end)
-)
-
-
-------------------------------------------------------------------
--- INPUT: L (ARM FOR ESP), V (HOLD FOR TRIGGERBOT)
-------------------------------------------------------------------
-
-table.insert(
-    Connections,
-    UserInputService.InputBegan:Connect(function(input, gp)
-
-        if input.KeyCode == Enum.KeyCode.F7 then
-
-            KillScript()
-            return
-
-        end
-
-        if gp then return end
-
-
-        if input.KeyCode == Enum.KeyCode.L then
-            ESP.Armed = not ESP.Armed
-        end
-
-
-        if input.KeyCode == Enum.KeyCode.C then
-
-            AimAssist.Enabled = not AimAssist.Enabled
-            SaveSettings()
-
-            for _, btn in ipairs(mainContent:GetChildren()) do
-                if btn:IsA("TextButton") and (btn.Text:find("Aim Assist") or btn.Text:find("Aim Assist")) then
-                    btn.Text = AimAssist.Enabled and "Aim Assist: ON" or "Aim Assist: OFF"
-                    break
-                end
+        for _, btn in ipairs(mainContent:GetChildren()) do
+            if btn:IsA("TextButton") and (btn.Text:find("Aim Assist")) then
+                btn.Text = AimAssist.Enabled and "Aim Assist: ON" or "Aim Assist: OFF"
+                break
             end
-
         end
+    end
+    
+    if input.KeyCode == Enum.KeyCode.V then
+        TriggerHeld = true
+        TriggerState = "HOLDING"
+    end
+end))
 
 
-        if input.KeyCode == Enum.KeyCode.V then
-
-            TriggerHeld = true
-            TriggerState = "HOLDING"
-
+table.insert(Connections, UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.V then
+        TriggerHeld = false
+        if TriggerState ~= "DISARMED" then
+            TriggerState = "ARMED"
         end
-
-    end)
-)
-
-
-table.insert(
-    Connections,
-    UserInputService.InputEnded:Connect(function(input)
-
-        if input.KeyCode == Enum.KeyCode.V then
-
-            TriggerHeld = false
-
-            if TriggerState ~= "DISARMED" then
-                TriggerState = "ARMED"
-            end
-
-            clicked = false
-
-        end
-
-    end)
-)
+    end
+end))
 
 
 ------------------------------------------------------------------
@@ -1482,75 +1115,54 @@ table.insert(
 ------------------------------------------------------------------
 
 local function DetectCenterTarget()
-
     if not TriggerHeld then
-
         if TriggerState == "DISARMED" then
             TriggerState = "ARMED"
         end
-
-        clicked = false
         return
-
     end
-
-
+    
     TriggerState = "HOLDING"
-
-
+    
     if not Camera then
         Camera = workspace.CurrentCamera
         if not Camera then return end
     end
-
-
+    
     local mousePos = UserInputService:GetMouseLocation()
-
-
-    -- Immediate raycast at center pixel
     local ray = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
     local origin = ray.Origin
-
+    
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Blacklist
     params.FilterDescendantsInstances = { LocalPlayer.Character }
-
+    
     local result = workspace:Raycast(origin, ray.Direction * 1000, params)
-
+    
     if result and result.Instance then
-
         local part = result.Instance
         local model = part:FindFirstAncestorOfClass("Model")
-
+        
         if model then
-
             local playerHit = Players:GetPlayerFromCharacter(model)
-
             if playerHit and playerHit ~= LocalPlayer then
-
                 TriggerState = "TARGET"
-
                 mouse1press()
                 mouse1release()
-
                 return
-
             end
-
         end
-
     end
-
-
+    
     TriggerState = "HOLDING"
-    clicked = false
-
 end
 
 
 ------------------------------------------------------------------
--- AIM ASSIST (FIXED - maintains lock on closest to crosshair)
+-- AIM ASSIST
 ------------------------------------------------------------------
+
+local AAFOV = 400
 
 local function IsCharacterValid(char)
     if not char then return false end
@@ -1570,25 +1182,22 @@ local function GetTargetPosition(char)
     return nil
 end
 
-local AAFOV = 400 -- Increased FOV for better tracking
-
 function AimAssist:Update(deltaTime)
     if not self.Enabled then
         self.CurrentTarget = nil
         return
     end
-
+    
     if not Camera then
         Camera = workspace.CurrentCamera
         if not Camera then return end
     end
-
+    
     local screenCenter = Camera.ViewportSize / 2
     local bestTarget = nil
     local bestDistance = math.huge
     local bestTargetPos = nil
-
-    -- Find best target (closest to crosshair)
+    
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then
             local char = plr.Character
@@ -1611,11 +1220,9 @@ function AimAssist:Update(deltaTime)
             end
         end
     end
-
-    -- Update current target
+    
     self.CurrentTarget = bestTarget
-
-    -- Apply smoothing if we have a target
+    
     if bestTargetPos then
         local currentCFrame = Camera.CFrame
         local cameraPos = currentCFrame.Position
@@ -1636,23 +1243,14 @@ end
 -- MAIN LOOP
 ------------------------------------------------------------------
 
-table.insert(
-    Connections,
-    RunService.RenderStepped:Connect(function(dt)
-
-        if not Running then
-            return
-        end
-
-        ESP:Update()
-
-        DetectCenterTarget()
-
-        AimAssist:Update(dt)
-
-        if stateLabel then
-            stateLabel.Text = "Trigger state: " .. TriggerState
-        end
-
-    end)
-)
+table.insert(Connections, RunService.RenderStepped:Connect(function(dt)
+    if not Running then return end
+    
+    UpdateESP()
+    DetectCenterTarget()
+    AimAssist:Update(dt)
+    
+    if stateLabel then
+        stateLabel.Text = "Trigger state: " .. TriggerState
+    end
+end))
