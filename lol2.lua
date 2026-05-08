@@ -1159,18 +1159,18 @@ table.insert(
     Connections,
     UserInputService.InputBegan:Connect(function(input, gp)
 
+        if input.KeyCode == Enum.KeyCode.F7 then
+
+            KillScript()
+            return
+
+        end
+
         if gp then return end
 
 
         if input.KeyCode == Enum.KeyCode.L then
             ESP.Armed = not ESP.Armed
-        end
-
-
-        if input.KeyCode == Enum.KeyCode.F7 then
-
-            KillScript()
-
         end
 
 
