@@ -1322,10 +1322,65 @@ end
 -- AIM ASSIST
 ------------------------------------------------------------------
 
+local function IsCharacterKnocked(char)
+
+    if not char then
+        return true
+    end
+
+    local humanoid = char:FindFirstChild("Humanoid")
+
+    if not humanoid then
+        return true
+    end
+
+    if humanoid.Health <= 0 then
+        return true
+    end
+
+    if humanoid:GetState() == Enum.HumanoidStateType.Dead then
+        return true
+    end
+
+    return false
+
+end
+
+
+local function DisableAimAssist()
+
+    AimAssist.Enabled = false
+    AimAssist.CurrentTarget = nil
+
+    for _, btn in ipairs(mainContent:GetChildren()) do
+        if btn:IsA("TextButton") and (btn.Text:find("Aim Assist") or btn.Text:find("Aim Assist")) then
+            btn.Text = "Aim Assist: OFF"
+            break
+        end
+    end
+
+    SaveSettings()
+
+end
+
+
 local function DoAimAssist()
 
     if not AimAssist.Enabled then
+        AimAssist.CurrentTarget = nil
         return
+    end
+
+    -- Check if current target is still alive
+    if AimAssist.CurrentTarget then
+
+        local char = AimAssist.CurrentTarget.Character
+
+        if IsCharacterKnocked(char) then
+            DisableAimAssist()
+            return
+        end
+
     end
 
     if not Camera then
@@ -1337,6 +1392,7 @@ local function DoAimAssist()
     local screenSize = Camera.ViewportSize
 
     local nearestTarget = nil
+    local nearestTargetPlayer = nil
     local nearestDist = math.huge
 
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -1345,7 +1401,7 @@ local function DoAimAssist()
 
             local char = plr.Character
 
-            if char and char:FindFirstChild("HumanoidRootPart") then
+            if char and not IsCharacterKnocked(char) and char:FindFirstChild("HumanoidRootPart") then
 
                 local rootPart = char.HumanoidRootPart
 
@@ -1358,6 +1414,7 @@ local function DoAimAssist()
                     if dist < nearestDist then
                         nearestDist = dist
                         nearestTarget = screenPos
+                        nearestTargetPlayer = plr
                     end
 
                 end
@@ -1367,6 +1424,8 @@ local function DoAimAssist()
         end
 
     end
+
+    AimAssist.CurrentTarget = nearestTargetPlayer
 
     if nearestTarget then
 
