@@ -1374,15 +1374,37 @@ end
 
 
 local AAFOV = 300 -- max pixels from screen center to lock on
-local AA_BASE_SPEED = 0.35 -- Matrix Hub-style base pull speed
-local AA_MIN_SPEED = 0.08 -- minimum correction even when close to center
 
 
-local function DoAimAssist()
+local function GetTargetHeadCFrame(targetChar)
 
-    if not AimAssist.Enabled then
-        if AimAssist.CurrentTarget then
-            AimAssist.CurrentTarget = nil
+    if not targetChar then
+        return nil
+    end
+
+    -- Try to get head first, fall back to HumanoidRootPart
+    local head = targetChar:FindFirstChild("Head")
+
+    if head then
+        return head.Position
+    end
+
+    local rootPart = targetChar:FindFirstChild("HumanoidRootPart")
+
+    if rootPart then
+        return rootPart.Position + Vector3.new(0, 1.5, 0) -- approximate head height
+    end
+
+    return nil
+
+end
+
+
+function AimAssist:Update(deltaTime)
+
+    if not self.Enabled then
+        if self.CurrentTarget then
+            self.CurrentTarget = nil
         end
         return
     end
@@ -1393,55 +1415,54 @@ local function DoAimAssist()
     end
 
     -- Check if current target is still alive
-    if AimAssist.CurrentTarget then
+    if self.CurrentTarget then
 
-        local char = AimAssist.CurrentTarget.Character
+        local char = self.CurrentTarget.Character
 
         if IsCharacterKnocked(char) then
             DisableAimAssist()
             return
         end
 
-        -- If we have a valid target, lock onto it
-        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        -- Get the target position (head or root)
+        local targetPos = GetTargetHeadCFrame(char)
 
-        if rootPart then
+        if targetPos then
 
-            local targetPos = Camera:WorldToViewportPoint(rootPart.Position)
+            -- Project to viewport to check if still in range
+            local screenPos = Camera:WorldToViewportPoint(targetPos)
+            local screenCenter = Camera.ViewportSize / 2
+            local dx = screenPos.X - screenCenter.X
+            local dy = screenPos.Y - screenCenter.Y
+            local distFromCenter = Vector2.new(dx, dy).Magnitude
 
-            if targetPos then
+            -- If target moved too far out of FOV, drop lock
+            if distFromCenter > AAFOV * 2 then
+                self.CurrentTarget = nil
+            else
+                -- Smooth camera rotation toward target using CFrame lerp
+                local smoothness = self.Strength -- 0.0 = instant, 1.0 = max smoothing
 
-                local screenCenter = Camera.ViewportSize / 2
+                -- compute target camera CFrame looking at the target's head
+                local currentCFrame = Camera.CFrame
+                local cameraPos = currentCFrame.Position
+                local targetCFrame = CFrame.lookAt(cameraPos, targetPos)
 
-                local dx = targetPos.X - screenCenter.X
-                local dy = targetPos.Y - screenCenter.Y
+                -- interpolation factor: 1 - smoothness
+                -- 0 smoothness -> factor 1.0 (instant snap)
+                -- 1 smoothness -> factor 0.0 (no movement)
+                local factor = 1 - smoothness
 
-                local distFromCenter = Vector2.new(dx, dy).Magnitude
+                -- Apply deltaTime so behavior is frame-rate independent
+                -- factor * (1 - (1/2)^(dt*60)) ensures ~same speed at any framerate
+                local dtFactor = 1 - (1 - factor) ^ (deltaTime * 60)
+                dtFactor = math.clamp(dtFactor, 0, 1)
 
-                -- If target moved too far, find new target
-                if distFromCenter > AAFOV * 2 then
-                    AimAssist.CurrentTarget = nil
-                else
-                    -- Matrix Hub-style: aggressive pull scaled by strength
-                    local strength = AimAssist.Strength
-                    local speed = AA_BASE_SPEED + (strength * 0.5)
-                    speed = math.max(AA_MIN_SPEED, speed)
+                -- Slerp-like approach: lerp the look vector components
+                local newCFrame = currentCFrame:Lerp(targetCFrame, dtFactor)
 
-                    -- Distance-based scaling: farther = stronger pull
-                    local distFactor = math.clamp(distFromCenter / AAFOV, 0.2, 2.0)
-
-                    local moveX = dx * speed * distFactor
-                    local moveY = dy * speed * distFactor
-
-                    -- Clamp max movement per frame to prevent jitter
-                    local maxMove = 60
-                    moveX = math.clamp(moveX, -maxMove, maxMove)
-                    moveY = math.clamp(moveY, -maxMove, maxMove)
-
-                    mousemoverel(moveX, moveY)
-                    return
-                end
-
+                Camera.CFrame = newCFrame
+                return
             end
 
         end
@@ -1450,9 +1471,9 @@ local function DoAimAssist()
 
     -- Find nearest target to screen center within FOV
     local screenCenter = Camera.ViewportSize / 2
-    local nearestTarget = nil
     local nearestTargetPlayer = nil
     local nearestDist = math.huge
+    local nearestTargetPos = nil
 
     for _, plr in ipairs(Players:GetPlayers()) do
 
@@ -1460,20 +1481,26 @@ local function DoAimAssist()
 
             local char = plr.Character
 
-            if char and not IsCharacterKnocked(char) and char:FindFirstChild("HumanoidRootPart") then
+            if char and not IsCharacterKnocked(char) then
 
-                local rootPart = char.HumanoidRootPart
+                local targetPos = GetTargetHeadCFrame(char)
 
-                local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                if targetPos then
 
-                if onScreen then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
 
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    if onScreen then
 
-                    if dist < nearestDist and dist <= AAFOV then
-                        nearestDist = dist
-                        nearestTarget = screenPos
-                        nearestTargetPlayer = plr
+                        local dx = screenPos.X - screenCenter.X
+                        local dy = screenPos.Y - screenCenter.Y
+                        local dist = Vector2.new(dx, dy).Magnitude
+
+                        if dist < nearestDist and dist <= AAFOV then
+                            nearestDist = dist
+                            nearestTargetPos = targetPos
+                            nearestTargetPlayer = plr
+                        end
+
                     end
 
                 end
@@ -1484,29 +1511,32 @@ local function DoAimAssist()
 
     end
 
-    AimAssist.CurrentTarget = nearestTargetPlayer
+    self.CurrentTarget = nearestTargetPlayer
 
-    if nearestTarget then
+    if nearestTargetPos then
 
-        local dx = nearestTarget.X - screenCenter.X
-        local dy = nearestTarget.Y - screenCenter.Y
+        local smoothness = self.Strength
+        local currentCFrame = Camera.CFrame
+        local cameraPos = currentCFrame.Position
+        local targetCFrame = CFrame.lookAt(cameraPos, nearestTargetPos)
 
-        local strength = AimAssist.Strength
-        local speed = AA_BASE_SPEED + (strength * 0.5)
-        speed = math.max(AA_MIN_SPEED, speed)
+        local factor = 1 - smoothness
+        local dtFactor = 1 - (1 - factor) ^ (deltaTime * 60)
+        dtFactor = math.clamp(dtFactor, 0, 1)
 
-        local distFactor = math.clamp(nearestDist / AAFOV, 0.2, 2.0)
-
-        local moveX = dx * speed * distFactor
-        local moveY = dy * speed * distFactor
-
-        local maxMove = 60
-        moveX = math.clamp(moveX, -maxMove, maxMove)
-        moveY = math.clamp(moveY, -maxMove, maxMove)
-
-        mousemoverel(moveX, moveY)
+        local newCFrame = currentCFrame:Lerp(targetCFrame, dtFactor)
+        Camera.CFrame = newCFrame
 
     end
+
+end
+
+
+local function DoAimAssist()
+
+    -- DoAimAssist is kept as a wrapper that gets called from the main loop.
+    -- Expected to be refactored to pass deltaTime at the call site.
+    -- This function will be replaced by the AimAssist:Update() call in the main loop.
 
 end
 
