@@ -10,44 +10,62 @@ local Camera = workspace.CurrentCamera
 local TriggerHeld = false
 local TriggerState = "DISARMED"
 local clicked = false
+local Running = true
 
---// SAFE GETTERS
-local function GetLocalCharacter()
-    if not LocalPlayer then return nil end
-    return LocalPlayer.Character
-end
+------------------------------------------------------------------
+-- KILL SCRIPT
+------------------------------------------------------------------
 
-local function EnsureCamera()
-    if not Camera or Camera ~= workspace.CurrentCamera then
-        Camera = workspace.CurrentCamera
+local function KillScript()
+    Running = false
+
+    if screenGui then
+        screenGui:Destroy()
     end
-    return Camera
+
+    for _, conn in ipairs(Connections or {}) do
+        pcall(function()
+            conn:Disconnect()
+        end)
+    end
 end
 
---// INPUT HANDLING
+------------------------------------------------------------------
+-- INPUT: V (HOLD FOR TRIGGERBOT)
+------------------------------------------------------------------
+
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
+
+    if input.KeyCode == Enum.KeyCode.F7 then
+        KillScript()
+        return
+    end
 
     if input.KeyCode == Enum.KeyCode.V then
         TriggerHeld = true
         TriggerState = "HOLDING"
-        clicked = false
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.V then
         TriggerHeld = false
+
         if TriggerState ~= "DISARMED" then
             TriggerState = "ARMED"
         end
+
         clicked = false
     end
 end)
 
---// CORE DETECTION
+------------------------------------------------------------------
+-- TRIGGERBOT (WITH WALLCHECK)
+------------------------------------------------------------------
+
 local function DetectCenterTarget()
-    -- If not holding, reset state and exit
+
     if not TriggerHeld then
         if TriggerState == "DISARMED" then
             TriggerState = "ARMED"
@@ -58,15 +76,13 @@ local function DetectCenterTarget()
 
     TriggerState = "HOLDING"
 
-    local cam = EnsureCamera()
-    if not cam then return end
-
-    local char = GetLocalCharacter()
-    if not char then return end
+    if not Camera then
+        Camera = workspace.CurrentCamera
+        if not Camera then return end
+    end
 
     local mousePos = UserInputService:GetMouseLocation()
 
-    -- Slight multi‑ray sampling around center
     local offsets = {
         Vector2.new(0, 0),
         Vector2.new(1, 0),
@@ -79,60 +95,60 @@ local function DetectCenterTarget()
         Vector2.new(0, -2)
     }
 
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Blacklist
-    params.FilterDescendantsInstances = { char }
-
     local result
 
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.FilterDescendantsInstances = { LocalPlayer.Character }
+
     for _, offset in ipairs(offsets) do
-        local ray = cam:ViewportPointToRay(
-            mousePos.X + offset.X,
-            mousePos.Y + offset.Y
-        )
+        local ray =
+            Camera:ViewportPointToRay(
+                mousePos.X + offset.X,
+                mousePos.Y + offset.Y
+            )
 
-        result = workspace:Raycast(
-            ray.Origin,
-            ray.Direction * 1000,
-            params
-        )
+        local origin = ray.Origin
 
-        if result then break end
+        result =
+            workspace:Raycast(
+                origin,
+                ray.Direction * 1000,
+                params
+            )
+
+        if result then
+            break
+        end
     end
 
-    if not result or not result.Instance then
-        TriggerState = "HOLDING"
-        clicked = false
-        return
+    if result and result.Instance then
+        local part = result.Instance
+        local model = part:FindFirstAncestorOfClass("Model")
+
+        if model then
+            local playerHit = Players:GetPlayerFromCharacter(model)
+
+            if playerHit and playerHit ~= LocalPlayer then
+                TriggerState = "TARGET"
+
+                mouse1press()
+                mouse1release()
+
+                return
+            end
+        end
     end
 
-    local part = result.Instance
-    local model = part:FindFirstAncestorOfClass("Model")
-    if not model then
-        TriggerState = "HOLDING"
-        clicked = false
-        return
-    end
-
-    local playerHit = Players:GetPlayerFromCharacter(model)
-    if not playerHit or playerHit == LocalPlayer then
-        TriggerState = "HOLDING"
-        clicked = false
-        return
-    end
-
-    -- Valid enemy in center
-    TriggerState = "TARGET"
-
-    -- Simple debounce: only click once per detection cycle
-    if not clicked then
-        clicked = true
-        mouse1press()
-        mouse1release()
-    end
+    TriggerState = "HOLDING"
+    clicked = false
 end
 
---// MAIN LOOP
+------------------------------------------------------------------
+-- MAIN LOOP
+------------------------------------------------------------------
+
 RunService.RenderStepped:Connect(function()
+    if not Running then return end
     DetectCenterTarget()
 end)
